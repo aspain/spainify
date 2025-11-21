@@ -1,0 +1,24 @@
+node_modules
+presets.json
+presets/
+cache
+settings.json
+static/tts
+.idea
+.ntvs_analysis.dat
+obj/
+*.njsproj
+*.sln
+*.pem
+*.crt
+*.pfx
+*.key
+
+# VS
+.vscode
+.vscode/launch.json
+
+# Ignore Mac DS_Store files
+.DS_Store
+yarn.lock
+npm-debug.log

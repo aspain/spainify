@@ -1,0 +1,17 @@
+[Unit]
+Description=Spotify Display Control
+After=network.target weather-dashboard.service
+Requires=weather-dashboard.service
+
+[Service]
+Type=simple
+User=aspain
+# We keep the venv under backend, but the code under apps/spotify-display
+WorkingDirectory=/home/aspain/spainify
+ExecStartPre=/bin/sleep 30
+ExecStart=/home/aspain/spainify/backend/venv/bin/python /home/aspain/spainify/apps/spotify-display/spotify_display_control.py
+Environment="DISPLAY=:0"
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

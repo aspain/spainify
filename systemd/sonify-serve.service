@@ -1,0 +1,15 @@
+[Unit]
+Description=Serve Sonify Vue App
+After=network.target
+
+[Service]
+Type=simple
+User=aspain
+WorkingDirectory=/home/aspain/spainify/apps/sonify
+ExecStart=/usr/bin/npm run serve:prod
+Restart=always
+Environment=PATH=/usr/bin:/usr/local/bin
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target

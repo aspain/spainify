@@ -1,0 +1,14 @@
+[Unit]
+Description=Sonos HTTP API
+After=network.target
+
+[Service]
+Type=simple
+User=aspain
+WorkingDirectory=/home/aspain/spainify/apps/sonos-http-api
+ExecStart=/usr/bin/npm start
+Restart=always
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target

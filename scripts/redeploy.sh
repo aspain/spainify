@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Always run from repo root
+cd "$(dirname "$0")/.."
+
+echo "==> Installing Node dependencies..."
+for dir in \
+  apps/add-current \
+  apps/weather-dashboard \
+  apps/sonify \
+  apps/sonos-http-api
+do
+  if [ -f "$dir/package.json" ]; then
+    echo "----> npm install in $dir"
+    case "$(basename "$dir")" in
+      weather-dashboard)
+        (cd "$dir" && npm install --legacy-peer-deps)
+        ;;
+      *)
+        (cd "$dir" && npm install)
+        ;;
+    esac
+  else
+    echo "----> skipping $dir (no package.json)"
+  fi
+done
+
+echo
+echo "==> Installing Python dependencies for Spotify display (backend/venv)..."
+REQ_FILE=apps/spotify-display/requirements.txt
+VENV_DIR=backend/venv
+
+if [ -f "$REQ_FILE" ]; then
+  if [ ! -x "$VENV_DIR/bin/pip" ]; then
+    echo "----> creating venv at $VENV_DIR"
+    python3 -m venv "$VENV_DIR"
+  fi
+  echo "----> installing requirements from $REQ_FILE"
+  "$VENV_DIR/bin/pip" install -r "$REQ_FILE"
+else
+  echo "----> no $REQ_FILE found; skipping Python deps"
+fi
+
+echo
+echo "==> Building frontend assets..."
+
+if [ -d apps/weather-dashboard ] && [ -f apps/weather-dashboard/package.json ]; then
+  echo "----> npm run build (weather-dashboard)"
+  (cd apps/weather-dashboard && npm run build)
+else
+  echo "----> skipping weather-dashboard (missing dir or package.json)"
+fi
+
+if [ -d apps/sonify ] && [ -f apps/sonify/package.json ]; then
+  echo "----> npm run build (sonify)"
+  (cd apps/sonify && npm run build)
+else
+  echo "----> skipping sonify (missing dir or package.json)"
+fi
+
+echo
+echo "==> Updating systemd unit files from repo and restarting services..."
+sudo cp systemd/add-current.service        /etc/systemd/system/add-current.service
+sudo cp systemd/spotify_display.service    /etc/systemd/system/spotify_display.service
+sudo cp systemd/weather-dashboard.service  /etc/systemd/system/weather-dashboard.service
+sudo cp systemd/sonos-http-api.service     /etc/systemd/system/sonos-http-api.service
+sudo cp systemd/sonify-serve.service       /etc/systemd/system/sonify-serve.service
+
+sudo systemctl daemon-reload
+
+sudo systemctl restart \
+  add-current.service \
+  spotify_display.service \
+  weather-dashboard.service \
+  sonos-http-api.service \
+  sonify-serve.service
+
+echo
+echo "All done."

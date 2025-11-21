@@ -1,0 +1,39 @@
+{
+  "name": "Nowify",
+  "version": "2.0.1",
+  "private": true,
+  "bugs": "https://github.com/jonashcroft/Nowify/issues/",
+  "license": "MIT",
+  "repository": {
+    "url": "https://github.com/jonashcroft/Nowify/",
+    "type": "git"
+  },
+  "scripts": {
+    "serve:prod": "serve -s dist -l 5000",
+    "serve": "vue-cli-service serve",
+    "build": "vue-cli-service build",
+    "lint": "vue-cli-service lint"
+  },
+  "dependencies": {
+    "axios": "^0.19.2",
+    "core-js": "^3.6.5",
+    "dotenv": "^8.2.0",
+    "node-vibrant": "^3.1.4",
+    "spotify-web-api-js": "^1.5.1",
+    "vue": "^2.6.11"
+  },
+  "devDependencies": {
+    "@vue/cli-plugin-babel": "~4.4.0",
+    "@vue/cli-plugin-eslint": "~4.4.0",
+    "@vue/cli-service": "~4.4.0",
+    "@vue/eslint-config-prettier": "^6.0.0",
+    "babel-eslint": "^10.1.0",
+    "eslint": "^6.7.2",
+    "eslint-plugin-prettier": "^3.1.3",
+    "eslint-plugin-vue": "^6.2.2",
+    "prettier": "^1.19.1",
+    "sass": "^1.83.4",
+    "sass-loader": "^8.0.2",
+    "vue-template-compiler": "^2.6.11"
+  }
+}

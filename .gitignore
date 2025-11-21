@@ -1,0 +1,31 @@
+# Node dependencies
+node_modules/
+apps/*/node_modules/
+
+# Python venv
+apps/spotify-display/venv/
+
+# Build artifacts
+**/build/
+**/dist/
+**/.cache/
+.cache/
+cache/
+
+# Local runtime data
+apps/spotify-display/chromium_sonify/
+apps/spotify-display/chromium_weather/
+
+# Logs
+*.log
+
+# Environment / secrets
+.env
+.env.*
+*.env
+
+# OS/editor cruft
+.DS_Store
+*.swp
+*.swo
+backend/

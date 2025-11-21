@@ -1,0 +1,17 @@
+[Unit]
+Description=Sonos "add current track to Spotify" microservice
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=aspain
+WorkingDirectory=/home/aspain/spainify/apps/add-current
+EnvironmentFile=/home/aspain/spainify/apps/add-current/.env
+ExecStart=/usr/bin/node /home/aspain/spainify/apps/add-current/server.js
+Restart=always
+RestartSec=3
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target

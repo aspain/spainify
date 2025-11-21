@@ -1,0 +1,99 @@
+/**
+ * Component: Now Playing.
+ * -----------------------------------------------------------------------------
+ * Styles for the 'Now Playing' screen.
+ *
+ */
+ .now-playing {
+  background-color: var(--colour-background-now-playing);
+  color: var(--color-text-primary);
+  display: flex;
+  flex-flow: column nowrap;
+  height: 100%;
+  padding: var(--spacing-l);
+  width: 100%;
+
+  &__cover,
+  &__details {
+    padding: var(--spacing-m);
+    text-align: center;
+    width: 100%;
+  }
+
+  &__cover {
+    max-width: 400px;
+  }
+
+  &__image {
+    box-shadow: 1px 1px 16px -2px rgba(0, 0, 0, 0.3);
+    height: auto;
+    max-width: 60vw;
+    width: 100%;
+  }
+
+  &__details {
+    text-align: center;
+  }
+
+  /* Truncate long track titles with ellipses once container is filled (3 lines) */
+  &__track {
+    font-weight: var(--font-weight-heading);
+    font-size: 86px;
+    // line-height: 1; /* Current line-height */
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-height: calc(86px * 3 + 30px); /* Increased max-height by 10px */
+    word-wrap: break-word;
+    // padding-top: 0;
+    margin-top: -20px;
+    padding-bottom: 1px; /* Additional bottom padding */
+    box-sizing: border-box; /* Ensure padding is included in height */
+  }
+
+  /* Truncate long artist names with ellipses once container is filled (3 lines) */
+  &__artists {
+    opacity: 0.85;
+    font-size: 82px;
+    // line-height: 1; /* Increased line-height to prevent cutoff of descenders */
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-height: calc(82px * 2 + 20px); /* Adjusted max-height based on new line-height */
+    word-wrap: break-word;
+    padding-top: 1px; /* Additional top padding */
+    padding-bottom: 5px; /* Reduced bottom padding to prevent overflow */
+    box-sizing: border-box; /* Ensure padding is included in height */
+  }
+
+  &--active {
+    align-items: center;
+    justify-content: center;
+  }
+
+  &--idle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  @media only screen and (min-width: 767px) {
+    flex-flow: row nowrap;
+    padding: 2rem 4rem; 
+
+    &__cover {
+      width: 33%;
+      max-width: 495px;
+      text-align: center;
+    }
+
+    &__details {
+      width: 67%;
+      text-align: left;
+    }
+  }  
+}
