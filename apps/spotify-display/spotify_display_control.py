@@ -70,7 +70,10 @@ def sanitize_chromium_profile(user_data_dir):
             logging.exception(f"Failed to remove {p}")
 
 
-def sonos_is_playing(room="Living Room", grace_seconds=5):
+SONOS_ROOM = os.getenv("SONOS_ROOM", "Living Room")
+
+
+def sonos_is_playing(room=SONOS_ROOM, grace_seconds=5):
     zones = requests.get("http://localhost:5005/zones", timeout=3).json()
 
     # find the zone group that has our target room as a member
@@ -164,7 +167,7 @@ def main():
             now = datetime.datetime.now(eastern)
             current_hour = now.hour
 
-            if sonos_is_playing("Living Room"):
+            if sonos_is_playing():
                 logging.info("Music is playing on Sonos.")
                 if not display_on or browser_url != 'sonify':
                     logging.info("Switching to Sonify display.")
