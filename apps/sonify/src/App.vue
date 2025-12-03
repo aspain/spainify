@@ -45,8 +45,8 @@ export default {
           const res   = await fetch('http://localhost:5005/zones');
           const zones = await res.json();
 
-          /* 1 ─ Watch whichever zone group Living Room belongs to */
-          const TARGET = 'Living Room';
+          /* 1 ─ Watch whichever zone group the target room belongs to */
+          const TARGET = import.meta.env.VITE_SONOS_ROOM || 'Living Room';
 
           const activeZone = zones.find(zone =>
             zone.members.some(m => m.roomName === TARGET)
