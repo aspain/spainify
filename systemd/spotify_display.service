@@ -8,6 +8,7 @@ Type=simple
 User=aspain
 # We keep the venv under backend, but the code under apps/spotify-display
 WorkingDirectory=/home/aspain/spainify
+EnvironmentFile=-/home/aspain/spainify/apps/spotify-display/.env
 ExecStartPre=/bin/sleep 30
 ExecStart=/home/aspain/spainify/backend/venv/bin/python /home/aspain/spainify/apps/spotify-display/spotify_display_control.py
 Environment="DISPLAY=:0"

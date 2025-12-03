@@ -29,6 +29,9 @@ ensure_env "$ROOT_DIR/apps/add-current" ".env.example" ".env"
 # Weather dashboard (OpenWeather key & city)
 ensure_env "$ROOT_DIR/apps/weather-dashboard" ".env.example" ".env"
 
+# Spotify display control
+ensure_env "$ROOT_DIR/apps/spotify-display" ".env.example" ".env"
+
 echo
 echo "==> Running first deploy (installs deps, builds frontend, updates systemd)"
 "$ROOT_DIR/scripts/redeploy.sh"
@@ -49,6 +52,9 @@ Manual steps you still need to do:
    - apps/weather-dashboard/.env
        REACT_APP_OPENWEATHER_API_KEY
        REACT_APP_CITY_NAME
+
+   - apps/spotify-display/.env
+       SONOS_ROOM (defaults to "Living Room")
 
 2) If you don't have a SPOTIFY_REFRESH_TOKEN yet:
 

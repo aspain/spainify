@@ -105,7 +105,14 @@ REACT_APP_CITY=YourCityName
 
 ### `apps/spotify-display`
 
-* No secrets required. Uses config and environment of the Raspberry Pi.
+Used by the Raspberry Pi process that switches between the Sonify and weather displays.
+
+Template: `apps/spotify-display/.env.example`
+
+```ini
+# Optional: override the Sonos room to monitor for playback
+SONOS_ROOM=Living Room
+```
 
 ### `apps/sonify`
 
