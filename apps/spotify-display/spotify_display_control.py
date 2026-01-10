@@ -15,6 +15,9 @@ eastern = pytz.timezone('US/Eastern')
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
+# Sonos HTTP session
+SONOS_SESSION = requests.Session()
+
 # Chromium user data directory
 CHROMIUM_USER_DATA_SONIFY = '/home/aspain/spainify/apps/spotify-display/chromium_sonify'
 
@@ -73,8 +76,22 @@ def sanitize_chromium_profile(user_data_dir):
 SONOS_ROOM = os.getenv("SONOS_ROOM", "Living Room")
 
 
-def sonos_is_playing(room=SONOS_ROOM, grace_seconds=5):
-    zones = requests.get("http://localhost:5005/zones", timeout=3).json()
+def sonos_is_playing(room=SONOS_ROOM, grace_seconds=5, force_refresh=False, cache_seconds=5):
+    now = time.time()
+    cached_zones = getattr(sonos_is_playing, "_last_zones", None)
+    cached_ts = getattr(sonos_is_playing, "_last_zones_ts", 0)
+    if not force_refresh and cached_zones is not None and (now - cached_ts) < cache_seconds:
+        zones = cached_zones
+    else:
+        try:
+            zones = SONOS_SESSION.get("http://localhost:5005/zones", timeout=3).json()
+            sonos_is_playing._last_zones = zones
+            sonos_is_playing._last_zones_ts = now
+        except requests.RequestException as exc:
+            logging.warning("Sonos zones request failed: %s", exc)
+            if cached_zones is None:
+                return False
+            zones = cached_zones
 
     # find the zone group that has our target room as a member
     grp = next((z for z in zones if any(m["roomName"] == room for m in z["members"])), None)
@@ -82,7 +99,6 @@ def sonos_is_playing(room=SONOS_ROOM, grace_seconds=5):
         return False
 
     # is any member actually playing a track?
-    now = time.time()
     playing = False
     for m in grp["members"]:
         st = m["state"]
@@ -212,4 +228,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
