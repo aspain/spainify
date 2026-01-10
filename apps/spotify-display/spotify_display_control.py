@@ -82,7 +82,7 @@ def sonos_is_playing(room=SONOS_ROOM, grace_seconds=5):
         return False
 
     # is any member actually playing a track?
-    now = time.time()
+    now = time.monotonic()
     playing = False
     for m in grp["members"]:
         st = m["state"]
@@ -212,4 +212,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
