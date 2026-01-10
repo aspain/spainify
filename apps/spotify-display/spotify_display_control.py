@@ -15,8 +15,14 @@ eastern = pytz.timezone('US/Eastern')
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
+# Sonos HTTP session
+SONOS_SESSION = requests.Session()
+
 # Chromium user data directory
 CHROMIUM_USER_DATA_SONIFY = '/home/aspain/spainify/apps/spotify-display/chromium_sonify'
+LAST_SANITIZE_FILENAME = "last_sanitize"
+NEEDS_SANITIZE_FILENAME = "needs_sanitize"
+SANITIZE_COOLDOWN_SECONDS = 60 * 60
 
 # URLs for displays
 SONIFY_URL = "http://localhost:5000"
@@ -48,7 +54,26 @@ def _patch_json(path):
     except Exception:
         logging.exception(f"Failed to patch {path}")
 
-def sanitize_chromium_profile(user_data_dir):
+def sanitize_chromium_profile(user_data_dir, force_sanitize=False):
+    last_sanitize_path = os.path.join(user_data_dir, LAST_SANITIZE_FILENAME)
+    needs_sanitize_path = os.path.join(user_data_dir, NEEDS_SANITIZE_FILENAME)
+
+    try:
+        os.makedirs(user_data_dir, exist_ok=True)
+    except Exception:
+        logging.exception(f"Failed to ensure user data dir {user_data_dir}")
+        return
+
+    exited_cleanly = _read_exited_cleanly(user_data_dir)
+    needs_sanitize = os.path.exists(needs_sanitize_path)
+
+    if exited_cleanly is not False and not needs_sanitize and not force_sanitize:
+        return
+
+    if not force_sanitize and not _should_sanitize(last_sanitize_path):
+        logging.info("Skipping Chromium profile sanitize due to recent run.")
+        return
+
     # fix flags that trigger the restore bubble
     _patch_json(os.path.join(user_data_dir, "Local State"))
     _patch_json(os.path.join(user_data_dir, "Default", "Preferences"))
@@ -68,13 +93,64 @@ def sanitize_chromium_profile(user_data_dir):
                 os.remove(p)
         except Exception:
             logging.exception(f"Failed to remove {p}")
+    _mark_sanitized(last_sanitize_path, needs_sanitize_path)
+
+
+def _read_exited_cleanly(user_data_dir):
+    local_state_path = os.path.join(user_data_dir, "Local State")
+    try:
+        with open(local_state_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data.get("profile", {}).get("exit_type") == "Normal" and data.get(
+            "profile", {}
+        ).get("exited_cleanly", True)
+    except FileNotFoundError:
+        return True
+    except Exception:
+        logging.exception(f"Failed to read {local_state_path}")
+        return False
+
+
+def _should_sanitize(last_sanitize_path, cooldown_seconds=SANITIZE_COOLDOWN_SECONDS):
+    try:
+        if not os.path.exists(last_sanitize_path):
+            return True
+        last_mtime = os.path.getmtime(last_sanitize_path)
+        return (time.time() - last_mtime) >= cooldown_seconds
+    except Exception:
+        logging.exception("Failed to evaluate sanitize cooldown.")
+        return True
+
+
+def _mark_sanitized(last_sanitize_path, needs_sanitize_path):
+    try:
+        with open(last_sanitize_path, "w", encoding="utf-8") as f:
+            f.write(str(time.time()))
+        if os.path.exists(needs_sanitize_path):
+            os.remove(needs_sanitize_path)
+    except Exception:
+        logging.exception("Failed to update sanitize markers.")
 
 
 SONOS_ROOM = os.getenv("SONOS_ROOM", "Living Room")
 
 
-def sonos_is_playing(room=SONOS_ROOM, grace_seconds=5):
-    zones = requests.get("http://localhost:5005/zones", timeout=3).json()
+def sonos_is_playing(room=SONOS_ROOM, grace_seconds=5, force_refresh=False, cache_seconds=5):
+    now = time.time()
+    cached_zones = getattr(sonos_is_playing, "_last_zones", None)
+    cached_ts = getattr(sonos_is_playing, "_last_zones_ts", 0)
+    if not force_refresh and cached_zones is not None and (now - cached_ts) < cache_seconds:
+        zones = cached_zones
+    else:
+        try:
+            zones = SONOS_SESSION.get("http://localhost:5005/zones", timeout=3).json()
+            sonos_is_playing._last_zones = zones
+            sonos_is_playing._last_zones_ts = now
+        except requests.RequestException as exc:
+            logging.warning("Sonos zones request failed: %s", exc)
+            if cached_zones is None:
+                return False
+            zones = cached_zones
 
     # find the zone group that has our target room as a member
     grp = next((z for z in zones if any(m["roomName"] == room for m in z["members"])), None)
@@ -108,18 +184,36 @@ def kill_chromium(chromium_process):
     """Terminate the Chromium process group."""
     if chromium_process:
         try:
-            os.killpg(os.getpgid(chromium_process.pid), signal.SIGTERM)
+            pgid = os.getpgid(chromium_process.pid)
+            os.killpg(pgid, signal.SIGTERM)
             time.sleep(2)  # Allow graceful termination
-            os.killpg(os.getpgid(chromium_process.pid), signal.SIGKILL)
-            logging.info("Chromium process group has been terminated.")
+            if chromium_process.poll() is None:
+                try:
+                    os.killpg(pgid, 0)
+                except ProcessLookupError:
+                    logging.info("Chromium process group has been terminated.")
+                else:
+                    logging.warning(
+                        "Chromium process group still alive after SIGTERM; sending SIGKILL."
+                    )
+                    os.killpg(pgid, signal.SIGKILL)
+                    logging.info("Chromium process group has been terminated.")
+            else:
+                logging.info("Chromium process group has been terminated.")
         except ProcessLookupError:
             logging.warning("Chromium process group already terminated.")
         except Exception as e:
             logging.exception("Error terminating Chromium process group.")
 
-def launch_chromium(url, user_data_dir, scale_factor=None, hide_scrollbars=False):
-    sanitize_chromium_profile(user_data_dir)
+def launch_chromium(
+    url,
+    user_data_dir,
+    scale_factor=None,
+    hide_scrollbars=False,
+    force_sanitize=False,
+):
     """Launch Chromium in full-screen mode with custom options."""
+    sanitize_chromium_profile(user_data_dir, force_sanitize=force_sanitize)
     args = [
         "chromium-browser",
         "--start-fullscreen",
@@ -159,6 +253,7 @@ def clean_user_data_dir(user_data_dir):
 
 def main():
     display_on = True  # Assume the display is initially on
+    last_cleanup_hour = None
     browser_url = None  # Tracks current mode: 'sonify' or 'weather'
     chromium_process = None
 
@@ -202,9 +297,10 @@ def main():
                         browser_url = None
 
             # Optionally clean user data directories every hour
-            if now.minute == 0 and now.second < 15:
+            if now.minute == 0 and now.second < 15 and now.hour != last_cleanup_hour:
                 logging.info("Cleaning user data directories.")
                 clean_user_data_dir(CHROMIUM_USER_DATA_SONIFY)
+                last_cleanup_hour = now.hour
 
         except Exception as e:
             logging.exception("An error occurred during display check.")
