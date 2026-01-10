@@ -108,10 +108,22 @@ def kill_chromium(chromium_process):
     """Terminate the Chromium process group."""
     if chromium_process:
         try:
-            os.killpg(os.getpgid(chromium_process.pid), signal.SIGTERM)
+            pgid = os.getpgid(chromium_process.pid)
+            os.killpg(pgid, signal.SIGTERM)
             time.sleep(2)  # Allow graceful termination
-            os.killpg(os.getpgid(chromium_process.pid), signal.SIGKILL)
-            logging.info("Chromium process group has been terminated.")
+            if chromium_process.poll() is None:
+                try:
+                    os.killpg(pgid, 0)
+                except ProcessLookupError:
+                    logging.info("Chromium process group has been terminated.")
+                else:
+                    logging.warning(
+                        "Chromium process group still alive after SIGTERM; sending SIGKILL."
+                    )
+                    os.killpg(pgid, signal.SIGKILL)
+                    logging.info("Chromium process group has been terminated.")
+            else:
+                logging.info("Chromium process group has been terminated.")
         except ProcessLookupError:
             logging.warning("Chromium process group already terminated.")
         except Exception as e:
@@ -212,4 +224,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
