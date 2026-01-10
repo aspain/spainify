@@ -143,10 +143,12 @@ def sonos_is_playing(room=SONOS_ROOM, grace_seconds=5, force_refresh=False, cach
         zones = cached_zones
     else:
         try:
-            zones = SONOS_SESSION.get("http://localhost:5005/zones", timeout=3).json()
+            resp = SONOS_SESSION.get("http://localhost:5005/zones", timeout=3)
+            resp.raise_for_status()
+            zones = resp.json()
             sonos_is_playing._last_zones = zones
             sonos_is_playing._last_zones_ts = now
-        except requests.RequestException as exc:
+        except (requests.RequestException, ValueError) as exc:
             logging.warning("Sonos zones request failed: %s", exc)
             if cached_zones is None:
                 return False
@@ -298,8 +300,11 @@ def main():
 
             # Optionally clean user data directories every hour
             if now.minute == 0 and now.second < 15 and now.hour != last_cleanup_hour:
-                logging.info("Cleaning user data directories.")
-                clean_user_data_dir(CHROMIUM_USER_DATA_SONIFY)
+                if chromium_process and chromium_process.poll() is None:
+                    logging.info("Skipping user data cleanup while Chromium is running.")
+                else:
+                    logging.info("Cleaning user data directories.")
+                    clean_user_data_dir(CHROMIUM_USER_DATA_SONIFY)
                 last_cleanup_hour = now.hour
 
         except Exception as e:
