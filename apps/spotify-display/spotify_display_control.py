@@ -159,6 +159,7 @@ def clean_user_data_dir(user_data_dir):
 
 def main():
     display_on = True  # Assume the display is initially on
+    last_cleanup_hour = None
     browser_url = None  # Tracks current mode: 'sonify' or 'weather'
     chromium_process = None
 
@@ -202,9 +203,10 @@ def main():
                         browser_url = None
 
             # Optionally clean user data directories every hour
-            if now.minute == 0 and now.second < 15:
+            if now.minute == 0 and now.second < 15 and now.hour != last_cleanup_hour:
                 logging.info("Cleaning user data directories.")
                 clean_user_data_dir(CHROMIUM_USER_DATA_SONIFY)
+                last_cleanup_hour = now.hour
 
         except Exception as e:
             logging.exception("An error occurred during display check.")
@@ -212,4 +214,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
