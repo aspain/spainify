@@ -14,6 +14,12 @@ This repository contains a consolidated set of locally hosted apps and services 
 
 **AI context:** See `AI_CONTEXT.md` for agent-focused system overview, behavior rules, ports, and edge cases.
 
+**Behavior notes:**
+- Weather schedule uses `US/Eastern` in `apps/spotify-display`.
+- Music display only triggers when the `Living Room` group is active (override with `SONOS_ROOM` and `VITE_SONOS_ROOM`).
+- Now-playing metadata comes from the Sonos API (first artist only).
+- `GET /add-current-smart` prefers Spotify, falls back to Sonos, de-dupes via `DE_DUPE_WINDOW`.
+
 **Recognition:**
 Huge shoutout to the authors of [Nowify](https://github.com/jonashcroft/Nowify) and [node-sonos-http-api](https://github.com/jishi/node-sonos-http-api) from which I drew inspiration, built upon, and utilized features of.
 
