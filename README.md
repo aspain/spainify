@@ -12,6 +12,8 @@ This repository contains a consolidated set of locally hosted apps and services 
 - Enable one-click iOS shortcuts to control all aspects of your Sonos system including presets for bundled actions (such as grouping rooms, setting volume, turn on shuffle, start playing a specified playlist all with one button)
 - If nothing is playing in the specified Sonos room(s) and the current time is outside of the designated weather dashboard display hours, the screen will otherwise go to sleep and will be automatically woken up when music playback starts again in the specified room(s)
 
+**AI context:** See `AI_CONTEXT.md` for agent-focused system overview, behavior rules, ports, and edge cases.
+
 **Recognition:**
 Huge shoutout to the authors of [Nowify](https://github.com/jonashcroft/Nowify) and [node-sonos-http-api](https://github.com/jishi/node-sonos-http-api) from which I drew inspiration, built upon, and utilized features of.
 
