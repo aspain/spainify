@@ -29,6 +29,7 @@ This file is **AI-focused project context** intended to speed up future conversa
 
 ## Playback Metadata Source
 - Track title, artist, and artwork come from the **Sonos API**, not direct Spotify calls.
+- Rationale: avoids Spotify auth/token refresh in the display path and works for non-Spotify sources (e.g., iBroadcast, Sonos app sources) with a single metadata flow.
 - Known limitation: **only first artist** shown when multiple artists are present.
 
 ## Add-Current Microservice

@@ -17,7 +17,7 @@ This repository contains a consolidated set of locally hosted apps and services 
 **Behavior notes:**
 - Weather schedule uses `US/Eastern` in `apps/spotify-display`.
 - Music display only triggers when the `Living Room` group is active (override with `SONOS_ROOM` and `VITE_SONOS_ROOM`).
-- Now-playing metadata comes from the Sonos API (first artist only).
+- Now-playing metadata comes from the Sonos API (first artist only), avoiding Spotify auth in the display path and supporting non-Spotify sources.
 - `GET /add-current-smart` prefers Spotify, falls back to Sonos, de-dupes via `DE_DUPE_WINDOW`.
 
 **Recognition:**
