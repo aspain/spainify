@@ -18,7 +18,9 @@ const REDIRECT_URI = `http://${
 const SCOPES = [
   "playlist-modify-public",
   "playlist-modify-private",
-  "user-read-currently-playing"
+  "user-read-currently-playing",
+  "user-read-playback-state",
+  "user-modify-playback-state"
 ].join(" ");
 
 app.get("/login", (_req, res) => {
@@ -71,4 +73,3 @@ app.listen(PORT, () => {
   console.log(`If browsing from another device, use http://<PI_IP>:${PORT}/login`);
   console.log(`Redirect URI expected: ${REDIRECT_URI}`);
 });
-

@@ -13,6 +13,7 @@ const {
   SPOTIFY_CLIENT_SECRET,
   SPOTIFY_REFRESH_TOKEN,
   SPOTIFY_PLAYLIST_ID,
+  SPOTIFY_DEVICE_NAME = "",
   SONOS_HTTP_BASE = "http://127.0.0.1:5005",
   PREFERRED_ROOM = "",
   DE_DUPE_WINDOW = "250",
@@ -229,6 +230,133 @@ async function getSpotifyCurrentlyPlayingTrack() {
   return { trackId: id, title, artist };
 }
 
+function sleep(ms) {
+  return new Promise(res => setTimeout(res, ms));
+}
+
+function parseBool(value) {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value === "boolean") return value;
+  const normalized = String(value).trim().toLowerCase();
+  if (["1", "true", "yes", "y", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "n", "off"].includes(normalized)) return false;
+  return null;
+}
+
+function normalizeSpotifyUri(input) {
+  if (!input) return null;
+  let value = String(input).trim();
+  if (!value) return null;
+  try {
+    if (value.includes("%3A")) value = decodeURIComponent(value);
+  } catch {
+    // keep original if decoding fails
+  }
+  if (value.startsWith("spotify:")) return value;
+  const m = value.match(/open\.spotify\.com\/(playlist|album|track|artist|show|episode)\/([A-Za-z0-9]+)/);
+  if (m) return `spotify:${m[1]}:${m[2]}`;
+  return null;
+}
+
+function buildSpotifyPlayPayload(spotifyUri, positionMs) {
+  const payload = {};
+  const pos = Number(positionMs);
+  if (Number.isFinite(pos) && pos > 0) payload.position_ms = pos;
+  if (spotifyUri.startsWith("spotify:track:") || spotifyUri.startsWith("spotify:episode:")) {
+    return { ...payload, uris: [spotifyUri] };
+  }
+  return { ...payload, context_uri: spotifyUri };
+}
+
+function pickZoneByRooms(zones = [], rooms = []) {
+  if (!rooms.length) return null;
+  let best = null;
+  let bestCount = 0;
+  for (const zone of zones) {
+    const members = new Set(zone.members.map(m => m.roomName));
+    let count = 0;
+    for (const room of rooms) {
+      if (members.has(room)) count += 1;
+    }
+    if (count > bestCount) {
+      bestCount = count;
+      best = zone;
+    }
+  }
+  return bestCount > 0 ? best : null;
+}
+
+async function spotifyApiRequest(token, path, opts = {}) {
+  const r = await fetch(`https://api.spotify.com/v1${path}`, {
+    method: "GET",
+    ...opts,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      ...(opts.headers || {})
+    }
+  });
+  if (!r.ok) {
+    const t = await r.text().catch(() => "");
+    throw new Error(`Spotify API ${path} failed: ${r.status} ${t}`);
+  }
+  return r;
+}
+
+async function getSpotifyDevices(token) {
+  const r = await spotifyApiRequest(token, "/me/player/devices");
+  const j = await r.json();
+  return j.devices || [];
+}
+
+function resolveSpotifyDevice(devices, { deviceId, deviceName }) {
+  if (deviceId) {
+    const match = devices.find(d => d.id === deviceId);
+    if (match) return { id: match.id, name: match.name };
+    return null;
+  }
+  if (!deviceName) return null;
+  const target = deviceName.toLowerCase();
+  const exact = devices.find(d => d.name?.toLowerCase() === target);
+  if (exact) return { id: exact.id, name: exact.name };
+  const partial = devices.filter(d => d.name?.toLowerCase().includes(target));
+  if (partial.length === 1) return { id: partial[0].id, name: partial[0].name };
+  return null;
+}
+
+async function transferSpotifyPlayback(token, deviceId, play = false) {
+  if (!deviceId) throw new Error("Missing Spotify device id");
+  await spotifyApiRequest(token, "/me/player", {
+    method: "PUT",
+    body: JSON.stringify({ device_ids: [deviceId], play: !!play })
+  });
+}
+
+async function setSpotifyShuffle(token, shuffle) {
+  await spotifyApiRequest(token, `/me/player/shuffle?state=${shuffle ? "true" : "false"}`, {
+    method: "PUT"
+  });
+}
+
+async function startSpotifyPlayback(token, deviceId, payload) {
+  const suffix = deviceId ? `?device_id=${encodeURIComponent(deviceId)}` : "";
+  await spotifyApiRequest(token, `/me/player/play${suffix}`, {
+    method: "PUT",
+    body: JSON.stringify(payload)
+  });
+}
+
+async function applySonosPreset(presetName) {
+  if (!presetName) throw new Error("Missing preset name");
+  const url = `${SONOS_HTTP_BASE}/preset/${encodeURIComponent(presetName)}`;
+  const r = await fetch(url);
+  if (!r.ok) {
+    const t = await r.text().catch(() => "");
+    throw new Error(`preset ${presetName} failed: ${r.status} ${t}`);
+  }
+  return true;
+}
+
 /* ───────────────────────── Endpoints ───────────────────────── */
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
@@ -377,6 +505,210 @@ function parseVolumes(req) {
   return out;
 }
 
+function parseRoomsFromRequest(req) {
+  const method = req.method.toUpperCase();
+  let rooms = [];
+  if (method === "POST" && Array.isArray(req.body?.rooms)) {
+    rooms = req.body.rooms;
+  } else {
+    let q = req.query.rooms;
+    if (Array.isArray(q)) rooms = q.flatMap(s => String(s).split(","));
+    else if (typeof q === "string") rooms = String(q).split(",");
+  }
+  return rooms.map(r => r.trim()).filter(Boolean);
+}
+
+async function groupRoomsAndVolumes({ rooms, mode, preferred, volumesMap }) {
+  // Get zones and TRY to pick an active coordinator (existing behavior)
+  const zones = await getZones();
+  let zone = pickActiveZone(zones, preferred, mode);
+
+  // Resolve coordinator name with idle-safe fallback:
+  //  - If there is an active zone, use its coordinator.
+  //  - Otherwise, use preferred room if provided, else the first requested room.
+  let coordinatorName = zone ? (coordinatorOf(zone)?.roomName) : "";
+  if (!coordinatorName) {
+    coordinatorName = preferred || rooms[0];
+  }
+  if (!coordinatorName) {
+    throw new Error("Could not resolve coordinator name");
+  }
+
+  // Determine existing membership from the zone that contains the coordinator,
+  // even if the whole system is idle.
+  const coordZone = zoneByRoom(zones, coordinatorName);
+  const existing = new Set(
+    coordZone ? coordZone.members.map(m => m.roomName) : [coordinatorName]
+  );
+
+  // Skip rooms already grouped (or the coordinator itself)
+  const toJoin = rooms.filter(r => r && r !== coordinatorName && !existing.has(r));
+
+  // Join rooms sequentially with a short delay to avoid stereo-pair race conditions
+  const joined = [];
+  const joinFailed = [];
+  for (const room of toJoin) {
+    try {
+      await joinRoomTo(room, coordinatorName);
+      joined.push(room);
+
+      // Give Sonos ~200ms to settle before next join
+      await new Promise(r => setTimeout(r, 200));
+    } catch (err) {
+      joinFailed.push({ room, error: String(err.message || err) });
+    }
+  }
+
+  // Set volumes (only for keys the caller provided) — this won't change play/pause state
+  const volumeRooms = Object.keys(volumesMap);
+  const volResults = await Promise.allSettled(volumeRooms.map(r => setRoomVolume(r, volumesMap[r])));
+  const volumes_set = [];
+  const volumes_failed = [];
+  volResults.forEach((p, i) => {
+    const room = volumeRooms[i];
+    if (p.status === "fulfilled") volumes_set.push({ room, volume: volumesMap[room] });
+    else volumes_failed.push({ room, error: String(p.reason?.message || p.reason) });
+  });
+
+  // Response
+  return {
+    ok: true,
+    coordinator: coordinatorName,
+    mode,
+    requested: rooms,
+    joined,
+    skipped_already_grouped: rooms.filter(r => existing.has(r) || r === coordinatorName),
+    failed: joinFailed,
+    volumes_set,
+    volumes_failed,
+    note: zone ? "Active zone found; playback unchanged." : "No active zone; grouped while idle without starting playback."
+  };
+}
+
+/**
+ * POST or GET /spotify-connect
+ *  - playlist: Spotify playlist URI or URL (required)
+ *  - device/device_id: Spotify Connect device name or id (optional if grouping resolves coordinator)
+ *  - preset: Sonos preset name (optional)
+ *  - rooms/volumes: optional grouping via this service (if no preset)
+ *  - shuffle/smart_shuffle: set shuffle (Spotify API doesn't support smart shuffle)
+ */
+app.all("/spotify-connect", async (req, res) => {
+  try {
+    const playlistInput =
+      req.body?.playlist ??
+      req.body?.uri ??
+      req.body?.context_uri ??
+      req.query.playlist ??
+      req.query.uri ??
+      req.query.context_uri ??
+      req.query.playlist_uri;
+
+    const spotifyUri = normalizeSpotifyUri(playlistInput);
+    if (!spotifyUri) {
+      return res.status(400).json({
+        ok: false,
+        error: "Provide a Spotify playlist URI or URL (e.g. spotify:playlist:... or https://open.spotify.com/playlist/...)"
+      });
+    }
+
+    const preset = String(req.body?.preset ?? req.query.preset ?? "").trim();
+    const mode = (String((req.body?.mode ?? req.query.mode ?? "music")).toLowerCase() === "any") ? "any" : "music";
+    const preferred = String(req.body?.preferred ?? req.query.preferred ?? PREFERRED_ROOM ?? "");
+    const rooms = parseRoomsFromRequest(req);
+    const volumesMap = parseVolumes(req);
+
+    const shuffleParam = parseBool(req.body?.shuffle ?? req.query.shuffle);
+    const smartShuffleParam = parseBool(req.body?.smart_shuffle ?? req.query.smart_shuffle ?? req.body?.smartShuffle ?? req.query.smartShuffle);
+    const warnings = [];
+    let shuffleRequested = shuffleParam;
+    if (shuffleRequested === null && smartShuffleParam === true) {
+      shuffleRequested = true;
+      warnings.push("Spotify API does not support Smart Shuffle; applied regular shuffle instead.");
+    } else if (smartShuffleParam === true && shuffleParam !== null) {
+      warnings.push("Spotify API does not support Smart Shuffle; applied regular shuffle instead.");
+    }
+
+    const positionMsRaw = req.body?.position_ms ?? req.query.position_ms ?? req.body?.positionMs ?? req.query.positionMs;
+    const positionMs = Number(positionMsRaw);
+
+    const delayRaw = req.body?.group_delay_ms ?? req.query.group_delay_ms ?? req.body?.groupDelayMs ?? req.query.groupDelayMs;
+    const groupDelayMs = Number.isFinite(Number(delayRaw)) ? Number(delayRaw) : 600;
+
+    let groupResult = null;
+    let presetResult = null;
+
+    if (preset) {
+      await applySonosPreset(preset);
+      presetResult = { preset, applied: true };
+    } else if (rooms.length > 0) {
+      groupResult = await groupRoomsAndVolumes({ rooms, mode, preferred, volumesMap });
+    }
+
+    if ((preset || rooms.length > 0) && groupDelayMs > 0) {
+      await sleep(groupDelayMs);
+    }
+
+    let deviceName =
+      String(req.body?.device ?? req.body?.device_name ?? req.body?.coordinator ?? req.query.device ?? req.query.device_name ?? req.query.coordinator ?? "").trim();
+    let deviceId = String(req.body?.device_id ?? req.query.device_id ?? req.body?.spotify_device_id ?? req.query.spotify_device_id ?? "").trim();
+    let coordinatorFromZones = "";
+
+    if (!deviceId && !deviceName && (rooms.length > 0 || preferred)) {
+      const zones = await getZones();
+      const zone = rooms.length > 0 ? pickZoneByRooms(zones, rooms) : zoneByRoom(zones, preferred);
+      coordinatorFromZones = zone ? (coordinatorOf(zone)?.roomName || "") : "";
+    }
+
+    if (!deviceId && !deviceName) {
+      if (groupResult?.coordinator) deviceName = groupResult.coordinator;
+      else if (coordinatorFromZones) deviceName = coordinatorFromZones;
+      else if (preferred) deviceName = preferred;
+      else if (rooms.length > 0) deviceName = rooms[0];
+      else if (SPOTIFY_DEVICE_NAME) deviceName = SPOTIFY_DEVICE_NAME;
+    }
+
+    if (!deviceId && !deviceName) {
+      return res.status(400).json({
+        ok: false,
+        error: "Provide device/device_id, or pass rooms/preferred so the coordinator can be used."
+      });
+    }
+
+    const token = await getAccessToken();
+    const devices = await getSpotifyDevices(token);
+    const resolved = resolveSpotifyDevice(devices, { deviceId, deviceName });
+    if (!resolved) {
+      return res.status(400).json({
+        ok: false,
+        error: "Spotify device not found",
+        device_requested: deviceId || deviceName,
+        available_devices: devices.map(d => d.name)
+      });
+    }
+
+    await transferSpotifyPlayback(token, resolved.id, false);
+
+    if (shuffleRequested !== null) {
+      await setSpotifyShuffle(token, shuffleRequested);
+    }
+
+    const payload = buildSpotifyPlayPayload(spotifyUri, positionMs);
+    await startSpotifyPlayback(token, resolved.id, payload);
+
+    res.json({
+      ok: true,
+      playlist: spotifyUri,
+      device: { id: resolved.id, name: resolved.name },
+      shuffle: shuffleRequested,
+      grouping: groupResult || presetResult || null,
+      warnings: warnings.length ? warnings : undefined
+    });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 /**
  * GET or POST /group
  *  - GET  : /group?rooms=Kitchen&rooms=Bedroom&mode=music&vol=Kitchen:12&vol=Bedroom:18
@@ -384,90 +716,19 @@ function parseVolumes(req) {
  */
 app.all("/group", async (req, res) => {
   try {
-    const method = req.method.toUpperCase();
     const mode = (String((req.body?.mode ?? req.query.mode ?? "music")).toLowerCase() === "any") ? "any" : "music";
     const preferred = String(req.body?.preferred ?? req.query.preferred ?? PREFERRED_ROOM ?? "");
 
     // Rooms (from JSON or query)
-    let rooms = [];
-    if (method === "POST" && Array.isArray(req.body?.rooms)) {
-      rooms = req.body.rooms;
-    } else {
-      let q = req.query.rooms;
-      if (Array.isArray(q)) rooms = q.flatMap(s => String(s).split(","));
-      else if (typeof q === "string") rooms = String(q).split(",");
-    }
-    rooms = rooms.map(r => r.trim()).filter(Boolean);
+    const rooms = parseRoomsFromRequest(req);
     if (rooms.length === 0) {
       return res.status(400).json({ ok: false, error: "Provide rooms (JSON rooms[] or ?rooms=...)" });
     }
 
     const volumesMap = parseVolumes(req); // { "Living Room": 10, ... }
 
-    // Get zones and TRY to pick an active coordinator (existing behavior)
-    const zones = await getZones();
-    let zone = pickActiveZone(zones, preferred, mode);
-
-    // Resolve coordinator name with idle-safe fallback:
-    //  - If there is an active zone, use its coordinator.
-    //  - Otherwise, use preferred room if provided, else the first requested room.
-    let coordinatorName = zone ? (coordinatorOf(zone)?.roomName) : "";
-    if (!coordinatorName) {
-      coordinatorName = preferred || rooms[0];
-    }
-    if (!coordinatorName) {
-      return res.status(500).json({ ok: false, error: "Could not resolve coordinator name" });
-    }
-
-    // Determine existing membership from the zone that contains the coordinator,
-    // even if the whole system is idle.
-    const coordZone = zoneByRoom(zones, coordinatorName);
-    const existing = new Set(
-      coordZone ? coordZone.members.map(m => m.roomName) : [coordinatorName]
-    );
-
-    // Skip rooms already grouped (or the coordinator itself)
-    const toJoin = rooms.filter(r => r && r !== coordinatorName && !existing.has(r));
-
-    // Join rooms sequentially with a short delay to avoid stereo-pair race conditions
-    const joined = [];
-    const joinFailed = [];
-    for (const room of toJoin) {
-      try {
-        await joinRoomTo(room, coordinatorName);
-        joined.push(room);
-
-        // Give Sonos ~200ms to settle before next join
-        await new Promise(r => setTimeout(r, 200));
-      } catch (err) {
-        joinFailed.push({ room, error: String(err.message || err) });
-      }
-    }
-
-    // Set volumes (only for keys the caller provided) — this won't change play/pause state
-    const volumeRooms = Object.keys(volumesMap);
-    const volResults = await Promise.allSettled(volumeRooms.map(r => setRoomVolume(r, volumesMap[r])));
-    const volumes_set = [];
-    const volumes_failed = [];
-    volResults.forEach((p, i) => {
-      const room = volumeRooms[i];
-      if (p.status === "fulfilled") volumes_set.push({ room, volume: volumesMap[room] });
-      else volumes_failed.push({ room, error: String(p.reason?.message || p.reason) });
-    });
-
-    // Response
-    res.json({
-      ok: true,
-      coordinator: coordinatorName,
-      mode,
-      requested: rooms,
-      joined,
-      skipped_already_grouped: rooms.filter(r => existing.has(r) || r === coordinatorName),
-      failed: joinFailed,
-      volumes_set,
-      volumes_failed,
-      note: zone ? "Active zone found; playback unchanged." : "No active zone; grouped while idle without starting playback."
-    });
+    const result = await groupRoomsAndVolumes({ rooms, mode, preferred, volumesMap });
+    res.json(result);
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
   }
@@ -477,5 +738,3 @@ app.all("/group", async (req, res) => {
 app.listen(Number(PORT), () =>
   console.log(`add-current listening on http://localhost:${PORT}`)
 );
-
-
