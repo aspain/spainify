@@ -19,7 +19,6 @@ This repository contains a consolidated set of locally hosted apps and services 
 - Music display only triggers when the `Living Room` group is active (override with `SONOS_ROOM` and `VITE_SONOS_ROOM`).
 - Now-playing metadata comes from the Sonos API (first artist only), avoiding Spotify auth in the display path and supporting non-Spotify sources.
 - `GET /add-current-smart` prefers Spotify, falls back to Sonos, de-dupes via `DE_DUPE_WINDOW`.
-- `POST /spotify-connect` can group rooms (or apply a Sonos preset) and then start Spotify Connect playback, replacing the queue.
 
 **Recognition:**
 Huge shoutout to the authors of [Nowify](https://github.com/jonashcroft/Nowify) and [node-sonos-http-api](https://github.com/jishi/node-sonos-http-api) from which I drew inspiration, built upon, and utilized features of.
@@ -91,9 +90,6 @@ SONOS_HTTP_BASE=http://127.0.0.1:5005
 
 # Optional: preferred Sonos room if multiple zones are playing
 PREFERRED_ROOM=
-
-# Optional: default Spotify Connect device name (Sonos room name)
-SPOTIFY_DEVICE_NAME=
 
 # Service port
 PORT=3030
@@ -175,7 +171,6 @@ Then in a browser:
 5. Stop the auth server with `Ctrl+C`
 
 You only need to do this once per Spotify app/client.
-If you plan to use Spotify Connect playback via `POST /spotify-connect`, re-run auth to grant playback scopes.
 
 ### 3. Install and enable systemd services (first time)
 
@@ -297,3 +292,4 @@ sudo systemctl stop add-current.service sonify-serve.service weather-dashboard.s
 ```
 
 That will pick up changes and restart the services.
+
