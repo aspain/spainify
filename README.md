@@ -1,18 +1,11 @@
-# Project Features
+# Overview
 
 This repository contains a consolidated set of locally hosted apps and services with the following features:
-- Display Sonos and Spotify now-playing details (artist, track title, and album artwork)
-    - This will work regardless of whether playback is initiated from either the Spotify or Sonos app
-    - If you have multiple Sonos rooms set up, a specific room can be chosen for the now-playing details
-    - The display has a dynamic background color based on a randomly sampled pixel from the album artwork
-    - The font color will switch between black and white depending on brightness level of the background to enhance readability
-- Display a custom local weather forecast display during specific hours of the day (currently set to display from 7am-9am)
-    - If music playback is initiated during the weather display hours, the music now-playing display will take precedence
-- Provide an API endpoint to add the currently-playing song to a specified Spotify playlist, which will skip the addition if the song is already present in the playlist
-- Enable one-click iOS shortcuts to control all aspects of your Sonos system including presets for bundled actions (such as grouping rooms, setting volume, turn on shuffle, start playing a specified playlist all with one button)
-- If nothing is playing in the specified Sonos room(s) and the current time is outside of the designated weather dashboard display hours, the screen will otherwise go to sleep and will be automatically woken up when music playback starts again in the specified room(s)
-
-**AI context:** See `AI_CONTEXT.md` for agent-focused system overview, behavior rules, ports, and edge cases.
+- Now-playing display for Sonos/Spotify (room selection, dynamic colors, readable contrast)
+- Weather dashboard during a scheduled window (currently 7am-9am) with music override
+- API endpoint to add the current track to a Spotify playlist with de-dupe
+- iOS Shortcuts for Sonos control and bundled presets
+- Display sleep/wake behavior based on playback and schedule
 
 **Behavior notes:**
 - Weather schedule uses `US/Eastern` in `apps/spotify-display`.
@@ -20,8 +13,12 @@ This repository contains a consolidated set of locally hosted apps and services 
 - Now-playing metadata comes from the Sonos API (first artist only), avoiding Spotify auth in the display path and supporting non-Spotify sources.
 - `GET /add-current-smart` prefers Spotify, falls back to Sonos, de-dupes via `DE_DUPE_WINDOW`.
 
-**Recognition:**
-Huge shoutout to the authors of [Nowify](https://github.com/jonashcroft/Nowify) and [node-sonos-http-api](https://github.com/jishi/node-sonos-http-api) from which I drew inspiration, built upon, and utilized features of.
+**Ports/URLs (defaults):**
+- Sonify UI: `http://localhost:5000`
+- Weather dashboard: `http://localhost:3000`
+- Sonos HTTP API: `http://localhost:5005`
+- Add-current microservice: `http://localhost:3030`
+- Spotify auth helper (only for add-to-playlist; now-playing needs no auth): `http://<pi-ip>:8888/login`
 
 **Now-playing example:**
 ![now playing](assets/images/now_playing.png)
@@ -139,23 +136,27 @@ git clone https://github.com/aspain/spainify.git
 cd spainify
 ```
 
+The now-playing display does not require Spotify auth. Spotify credentials and auth are only needed if you want the add-to-playlist feature.
+
 ### 1. Create `.env` files
 
 ```bash
-cp apps/add-current/.env.example apps/add-current/.env
+# Required for weather dashboard
 cp apps/weather-dashboard/.env.example apps/weather-dashboard/.env
 
-nano apps/add-current/.env
 nano apps/weather-dashboard/.env
+
+# Optional: add-current (for add-to-playlist)
+cp apps/add-current/.env.example apps/add-current/.env
+nano apps/add-current/.env
 ```
 
 Fill in:
 
-* Spotify client ID/secret/playlist ID and refresh token
-* OpenWeather API key
-* City name
+* OpenWeather API key and city name
+* Optional (add-to-playlist): Spotify client ID/secret/playlist ID and refresh token
 
-### 2. One-time Spotify auth (to get the refresh token)
+### 2. Optional: one-time Spotify auth (to get the refresh token)
 
 ```bash
 cd apps/add-current
@@ -293,3 +294,8 @@ sudo systemctl stop add-current.service sonify-serve.service weather-dashboard.s
 
 That will pick up changes and restart the services.
 
+---
+
+## Recognition
+
+Huge shoutout to the authors of [Nowify](https://github.com/jonashcroft/Nowify) and [node-sonos-http-api](https://github.com/jishi/node-sonos-http-api) from which I drew inspiration, built upon, and utilized features of.
