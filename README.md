@@ -1,24 +1,12 @@
 # Overview
 
-This repository contains a consolidated set of locally hosted apps and services with the following features:
-- Now-playing display for Sonos/Spotify (room selection, dynamic colors, readable contrast)
-- Weather dashboard during a scheduled window (currently 7am-9am) with music override
-- API endpoint to add the current track to a Spotify playlist with de-dupe
-- iOS Shortcuts for Sonos control and bundled presets
-- Display sleep/wake behavior based on playback and schedule
-
-**Behavior notes:**
-- Weather schedule uses `US/Eastern` in `apps/spotify-display`.
-- Music display only triggers when the `Living Room` group is active (override with `SONOS_ROOM` and `VITE_SONOS_ROOM`).
-- Now-playing metadata comes from the Sonos API (first artist only), avoiding Spotify auth in the display path and supporting non-Spotify sources.
-- `GET /add-current-smart` prefers Spotify, falls back to Sonos, de-dupes via `DE_DUPE_WINDOW`.
-
-**Ports/URLs (defaults):**
-- Sonify UI: `http://localhost:5000`
-- Weather dashboard: `http://localhost:3000`
-- Sonos HTTP API: `http://localhost:5005`
-- Add-current microservice: `http://localhost:3030`
-- Spotify auth helper (only for add-to-playlist; now-playing needs no auth): `http://<pi-ip>:8888/login`
+This project contains a set of locally hosted apps and services with features including:
+- Sonos and Spotify now-playing LCD: displays artist, track title and album artwork with a vibrant, dynamic background color chosen from the album artwork
+- Local weather dashboard: displays local forecast during a scheduled window, via free OpenWeather API
+- Custom local network endpoints: add the currently-playing song to a Spotify playlist which can be set up as a single-click iOS shortcut, and includes de-dupe to prevent the same song from being added multiple times
+- Full Sonos controls: group/ungroup rooms, adjust volume, play/pause/skip tracks, etc. via iOS shortcuts, no longer need to use the clunky Sonos app
+- Sonos pressets: combine multiple actions (group rooms, set volume, add playlist to queue, play in shuffle, etc) all into a single iOS shortcut
+- Auto display sleep/wake behavior: based on playback and schedule
 
 **Now-playing example:**
 ![now playing](assets/images/now_playing.png)
@@ -27,18 +15,22 @@ This repository contains a consolidated set of locally hosted apps and services 
 **Weather dashboard example:**
 ![weather dashboard](assets/images/weather.png)
 
+**Ports/URLs (defaults):**
+- Sonify UI: `http://localhost:5000`
+- Weather dashboard: `http://localhost:3000`
+- Sonos HTTP API: `http://localhost:5005`
+- Add-current microservice: `http://localhost:3030`
+- Spotify auth helper (only for add-to-playlist; now-playing needs no auth): `http://<pi-ip>:8888/login`
 
 **Apps/services included:**
 
-* **Sonos HTTP API** (`apps/sonos-http-api`) - This is an unmodified fork of [node-sonos-http-api](https://github.com/jishi/node-sonos-http-api)
+* **Sonos HTTP API** (`apps/sonos-http-api`) - An unmodified fork of [node-sonos-http-api](https://github.com/jishi/node-sonos-http-api)
 * **Add Current Track to Spotify microservice** (`apps/add-current`)
 * **Spotify Display Controller** (`apps/spotify-display`)
 * **Weather Dashboard (React)** (`apps/weather-dashboard`)
 * **Sonify UI (Vue)** (`apps/sonify`) This is a modified fork of [Nowify](https://github.com/jonashcroft/Nowify)
 * **Systemd service definitions** (`systemd/`)
-* **Deployment script** (`scripts/redeploy.sh`)
-
-The goal: make updates easy — pull changes, run one command, everything redeploys.
+* **Deployment script** (`scripts/redeploy.sh`) - Script to run to avoid all doubt for which services to restart upon making changes
 
 ---
 
