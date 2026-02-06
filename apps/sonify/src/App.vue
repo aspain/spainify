@@ -46,7 +46,10 @@ export default {
           const zones = await res.json();
 
           /* 1 ─ Watch whichever zone group the target room belongs to */
-          const TARGET = import.meta.env.VITE_SONOS_ROOM || 'Living Room';
+          const TARGET =
+            process.env.VUE_APP_SONOS_ROOM ||
+            process.env.VITE_SONOS_ROOM ||
+            'Living Room';
 
           const activeZone = zones.find(zone =>
             zone.members.some(m => m.roomName === TARGET)

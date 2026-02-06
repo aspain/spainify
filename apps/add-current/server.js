@@ -26,12 +26,26 @@ app.use(express.json());
 const recentAdds = new Map(); // trackId -> timestamp
 const RECENT_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
+function pruneRecentAdds(now = Date.now()) {
+  const cutoff = now - RECENT_TTL_MS;
+  for (const [trackId, ts] of recentAdds.entries()) {
+    if (ts < cutoff) recentAdds.delete(trackId);
+  }
+}
+
 function seenRecently(trackId) {
   const t = recentAdds.get(trackId);
-  return t && (Date.now() - t) < RECENT_TTL_MS;
+  if (!t) return false;
+  if ((Date.now() - t) >= RECENT_TTL_MS) {
+    recentAdds.delete(trackId);
+    return false;
+  }
+  return true;
 }
 function rememberAdd(trackId) {
-  recentAdds.set(trackId, Date.now());
+  const now = Date.now();
+  pruneRecentAdds(now);
+  recentAdds.set(trackId, now);
 }
 
 /* ───────────────────────── Helpers ───────────────────────── */
@@ -477,5 +491,4 @@ app.all("/group", async (req, res) => {
 app.listen(Number(PORT), () =>
   console.log(`add-current listening on http://localhost:${PORT}`)
 );
-
 

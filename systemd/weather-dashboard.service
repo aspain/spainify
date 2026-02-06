@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 WorkingDirectory=/home/aspain/spainify/apps/weather-dashboard
-ExecStart=/usr/bin/env npx serve -s build -l 3000
+ExecStart=/usr/bin/npm run serve:prod
 Restart=always
 User=aspain
 

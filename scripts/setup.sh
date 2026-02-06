@@ -51,7 +51,7 @@ Manual steps you still need to do:
 
    - apps/weather-dashboard/.env
        REACT_APP_OPENWEATHER_API_KEY
-       REACT_APP_CITY_NAME
+       REACT_APP_CITY
 
    - apps/spotify-display/.env
        SONOS_ROOM (defaults to "Living Room")
@@ -74,4 +74,3 @@ For future code changes you only need:
    ./scripts/redeploy.sh
 ------------------------------------------------------------------------------
 EOM
-

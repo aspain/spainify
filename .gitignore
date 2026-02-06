@@ -25,6 +25,8 @@ apps/spotify-display/chromium_weather/
 *.env
 !apps/spotify-display/.env.example
 !apps/sonify/.env.local.example
+!apps/add-current/.env.example
+!apps/weather-dashboard/.env.example
 
 # OS/editor cruft
 .DS_Store

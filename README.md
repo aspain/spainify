@@ -114,8 +114,10 @@ SONOS_ROOM=Living Room
 ### `apps/sonify`
 
 * No Spotify credentials required in this fork.
-* Any existing `.env.sample` is only informational and not required.
-* Optional: set `VITE_SONOS_ROOM` in `apps/sonify/.env.local` to pick the Sonos room to display (defaults to "Living Room").
+* Optional room override:
+  * Copy `apps/sonify/.env.local.example` to `apps/sonify/.env.local`
+  * Set `VUE_APP_SONOS_ROOM` (preferred) or `VITE_SONOS_ROOM` (legacy fallback)
+  * Default remains `"Living Room"` if unset.
 
 ---
 
