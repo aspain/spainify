@@ -248,9 +248,99 @@ async function fetchJsonWithRetry(url, opts = {}, retries = 3, timeoutMs = 4000)
   }
 }
 
-/** Read the last N items of the playlist (the most recent end) and see if trackId exists. */
-async function playlistHasTrack(trackId) {
-  const windowSize = Number(DE_DUPE_WINDOW || 250);
+const DEFAULT_DE_DUPE_WINDOW = 250;
+const DEFAULT_PLAYLIST_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const parsedPlaylistCacheTtlMs = Number(process.env.PLAYLIST_CACHE_TTL_MS || DEFAULT_PLAYLIST_CACHE_TTL_MS);
+const PLAYLIST_CACHE_TTL_MS =
+  Number.isFinite(parsedPlaylistCacheTtlMs) && parsedPlaylistCacheTtlMs > 0
+    ? parsedPlaylistCacheTtlMs
+    : DEFAULT_PLAYLIST_CACHE_TTL_MS;
+
+const playlistCache = {
+  ids: new Set(),
+  snapshotId: "",
+  total: 0,
+  windowSize: 0,
+  updatedAt: 0
+};
+let playlistCacheRefreshPromise = null;
+
+function getDedupeWindow() {
+  const n = Number(DE_DUPE_WINDOW || DEFAULT_DE_DUPE_WINDOW);
+  if (!Number.isFinite(n) || n < 1) return DEFAULT_DE_DUPE_WINDOW;
+  return Math.floor(n);
+}
+
+function isPlaylistCacheUsable(windowSize) {
+  return (
+    playlistCache.updatedAt > 0 &&
+    playlistCache.windowSize === windowSize &&
+    (Date.now() - playlistCache.updatedAt) < PLAYLIST_CACHE_TTL_MS
+  );
+}
+
+function markPlaylistCacheWithAddedTrack(trackId, windowSize) {
+  if (!trackId) return;
+  if (playlistCache.windowSize !== windowSize || playlistCache.updatedAt === 0) return;
+  const previousSize = playlistCache.ids.size;
+  playlistCache.ids.add(trackId);
+  if (playlistCache.ids.size > previousSize) playlistCache.total += 1;
+  playlistCache.updatedAt = Date.now();
+}
+
+async function fetchPlaylistMeta() {
+  const url = `https://api.spotify.com/v1/playlists/${SPOTIFY_PLAYLIST_ID}?fields=snapshot_id,tracks(total)`;
+  const j = await fetchSpotifyJsonWithRetry(url);
+  return {
+    snapshotId: String(j?.snapshot_id || ""),
+    total: Math.max(0, Number(j?.tracks?.total || 0))
+  };
+}
+
+async function scanPlaylistTrackIds(windowSize, total) {
+  const ids = new Set();
+  const base = `https://api.spotify.com/v1/playlists/${SPOTIFY_PLAYLIST_ID}/tracks`;
+  const end = Math.max(0, total);
+  let offset = Math.max(0, end - windowSize);
+
+  while (offset < end) {
+    const limit = Math.min(100, end - offset);
+    const url = `${base}?fields=items(track(id))&limit=${limit}&offset=${offset}`;
+    const j = await fetchSpotifyJsonWithRetry(url);
+    for (const it of (j.items || [])) {
+      const id = it?.track?.id;
+      if (id) ids.add(id);
+    }
+    const got = (j.items || []).length;
+    if (got === 0) break;
+    offset += got;
+  }
+
+  return ids;
+}
+
+async function refreshPlaylistCache(windowSize, meta = null) {
+  if (playlistCacheRefreshPromise) return playlistCacheRefreshPromise;
+
+  playlistCacheRefreshPromise = (async () => {
+    const resolvedMeta = meta || await fetchPlaylistMeta();
+    const ids = await scanPlaylistTrackIds(windowSize, resolvedMeta.total);
+    playlistCache.ids = ids;
+    playlistCache.snapshotId = resolvedMeta.snapshotId || "";
+    playlistCache.total = resolvedMeta.total;
+    playlistCache.windowSize = windowSize;
+    playlistCache.updatedAt = Date.now();
+    return playlistCache;
+  })();
+
+  try {
+    return await playlistCacheRefreshPromise;
+  } finally {
+    playlistCacheRefreshPromise = null;
+  }
+}
+
+async function playlistHasTrackDirect(trackId, windowSize) {
   const base = `https://api.spotify.com/v1/playlists/${SPOTIFY_PLAYLIST_ID}/tracks`;
 
   // 1) Get total
@@ -274,6 +364,38 @@ async function playlistHasTrack(trackId) {
     offset += got;
   }
   return false;
+}
+
+async function playlistHasTrackCached(trackId, windowSize) {
+  if (!isPlaylistCacheUsable(windowSize)) {
+    await refreshPlaylistCache(windowSize);
+    return playlistCache.ids.has(trackId);
+  }
+
+  // Lightweight revalidation so external playlist changes don't stale the cache.
+  const meta = await fetchPlaylistMeta();
+  const snapshotChanged =
+    !!meta.snapshotId &&
+    !!playlistCache.snapshotId &&
+    meta.snapshotId !== playlistCache.snapshotId;
+
+  if (snapshotChanged || meta.total !== playlistCache.total) {
+    await refreshPlaylistCache(windowSize, meta);
+  } else {
+    playlistCache.updatedAt = Date.now();
+  }
+
+  return playlistCache.ids.has(trackId);
+}
+
+/** Read the last N items of the playlist and see if trackId exists. */
+async function playlistHasTrack(trackId) {
+  const windowSize = getDedupeWindow();
+  try {
+    return await playlistHasTrackCached(trackId, windowSize);
+  } catch {
+    return playlistHasTrackDirect(trackId, windowSize);
+  }
 }
 
 
@@ -381,6 +503,9 @@ app.get("/add-current-smart", async (req, res) => {
     // 4) Add + remember
     await addTrackToPlaylist(picked.trackId);
     if (typeof rememberAdd === "function") rememberAdd(picked.trackId);
+    const windowSize = getDedupeWindow();
+    markPlaylistCacheWithAddedTrack(picked.trackId, windowSize);
+    refreshPlaylistCache(windowSize).catch(() => {});
 
     return res.json({
       added: true,
