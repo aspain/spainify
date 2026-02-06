@@ -15,10 +15,10 @@ do
     echo "----> npm install in $dir"
     case "$(basename "$dir")" in
       weather-dashboard)
-        (cd "$dir" && npm install --legacy-peer-deps)
+        (cd "$dir" && npm install --legacy-peer-deps --no-audit --no-fund)
         ;;
       *)
-        (cd "$dir" && npm install)
+        (cd "$dir" && npm install --no-audit --no-fund)
         ;;
     esac
   else
@@ -32,12 +32,21 @@ REQ_FILE=apps/spotify-display/requirements.txt
 VENV_DIR=backend/venv
 
 if [ -f "$REQ_FILE" ]; then
-  if [ ! -x "$VENV_DIR/bin/pip" ]; then
+  needs_new_venv=false
+  if [ ! -x "$VENV_DIR/bin/python" ] || [ ! -x "$VENV_DIR/bin/pip" ]; then
+    needs_new_venv=true
+  elif ! "$VENV_DIR/bin/pip" --version >/dev/null 2>&1; then
+    echo "----> existing venv pip is not runnable; recreating $VENV_DIR"
+    needs_new_venv=true
+  fi
+
+  if [ "$needs_new_venv" = true ]; then
+    rm -rf "$VENV_DIR"
     echo "----> creating venv at $VENV_DIR"
     python3 -m venv "$VENV_DIR"
   fi
   echo "----> installing requirements from $REQ_FILE"
-  "$VENV_DIR/bin/pip" install -r "$REQ_FILE"
+  "$VENV_DIR/bin/pip" install --disable-pip-version-check -r "$REQ_FILE"
 else
   echo "----> no $REQ_FILE found; skipping Python deps"
 fi

@@ -135,7 +135,24 @@ function pickActiveZone(zones, preferredRoom, mode = "music") {
   return active[0];
 }
 
-async function getAccessToken() {
+let cachedAccessToken = "";
+let cachedAccessTokenExpiresAt = 0;
+const ACCESS_TOKEN_SKEW_MS = 30 * 1000;
+
+function clearAccessTokenCache() {
+  cachedAccessToken = "";
+  cachedAccessTokenExpiresAt = 0;
+}
+
+async function getAccessToken({ forceRefresh = false } = {}) {
+  if (
+    !forceRefresh &&
+    cachedAccessToken &&
+    Date.now() < (cachedAccessTokenExpiresAt - ACCESS_TOKEN_SKEW_MS)
+  ) {
+    return cachedAccessToken;
+  }
+
   if (!SPOTIFY_REFRESH_TOKEN) throw new Error("Missing SPOTIFY_REFRESH_TOKEN");
   const body = new URLSearchParams({
     grant_type: "refresh_token",
@@ -152,17 +169,58 @@ async function getAccessToken() {
     throw new Error(`Token refresh failed: ${r.status} ${t}`);
   }
   const j = await r.json();
-  return j.access_token;
+  cachedAccessToken = j.access_token || "";
+  const expiresInSec = Number(j.expires_in || 3600);
+  cachedAccessTokenExpiresAt = Date.now() + (expiresInSec * 1000);
+  return cachedAccessToken;
+}
+
+async function spotifyRequest(makeRequest) {
+  let token = await getAccessToken();
+  let response = await makeRequest(token);
+  if (response.status === 401) {
+    clearAccessTokenCache();
+    token = await getAccessToken({ forceRefresh: true });
+    response = await makeRequest(token);
+  }
+  return response;
+}
+
+async function fetchSpotifyJsonWithRetry(url, retries = 3, timeoutMs = 4000) {
+  let token = await getAccessToken();
+
+  for (let refreshAttempt = 0; refreshAttempt < 2; refreshAttempt++) {
+    try {
+      return await fetchJsonWithRetry(
+        url,
+        { headers: { Authorization: `Bearer ${token}` } },
+        retries,
+        timeoutMs
+      );
+    } catch (err) {
+      const msg = String(err?.message || err);
+      if (refreshAttempt === 0 && msg.startsWith("401")) {
+        clearAccessTokenCache();
+        token = await getAccessToken({ forceRefresh: true });
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  throw new Error("Spotify request retry exhausted");
 }
 
 async function addTrackToPlaylist(trackId) {
   if (!SPOTIFY_PLAYLIST_ID) throw new Error("Missing SPOTIFY_PLAYLIST_ID");
-  const token = await getAccessToken();
-  const r = await fetch(`https://api.spotify.com/v1/playlists/${SPOTIFY_PLAYLIST_ID}/tracks`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ uris: [`spotify:track:${trackId}`] })
-  });
+  const r = await spotifyRequest(token => fetch(
+    `https://api.spotify.com/v1/playlists/${SPOTIFY_PLAYLIST_ID}/tracks`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ uris: [`spotify:track:${trackId}`] })
+    }
+  ));
   if (!r.ok) {
     const t = await r.text();
     throw new Error(`Add failed: ${r.status} ${t}`);
@@ -193,12 +251,10 @@ async function fetchJsonWithRetry(url, opts = {}, retries = 3, timeoutMs = 4000)
 /** Read the last N items of the playlist (the most recent end) and see if trackId exists. */
 async function playlistHasTrack(trackId) {
   const windowSize = Number(DE_DUPE_WINDOW || 250);
-  const token = await getAccessToken();
   const base = `https://api.spotify.com/v1/playlists/${SPOTIFY_PLAYLIST_ID}/tracks`;
-  const headers = { Authorization: `Bearer ${token}` };
 
   // 1) Get total
-  const meta = await fetchJsonWithRetry(`${base}?limit=1`, { headers });
+  const meta = await fetchSpotifyJsonWithRetry(`${base}?limit=1`);
   const total = Number(meta.total || 0);
 
   // 2) Scan from the end (most recent first)
@@ -208,7 +264,7 @@ async function playlistHasTrack(trackId) {
   while (offset < end) {
     const limit = Math.min(100, end - offset);
     const url = `${base}?fields=items(track(id))&limit=${limit}&offset=${offset}`;
-    const j = await fetchJsonWithRetry(url, { headers });
+    const j = await fetchSpotifyJsonWithRetry(url);
     for (const it of (j.items || [])) {
       const id = it?.track?.id;
       if (id && id === trackId) return true;
@@ -223,10 +279,10 @@ async function playlistHasTrack(trackId) {
 
 /** Use Spotify API to get the currently playing track for this account. */
 async function getSpotifyCurrentlyPlayingTrack() {
-  const token = await getAccessToken();
-  const r = await fetch("https://api.spotify.com/v1/me/player/currently-playing", {
-    headers: { Authorization: `Bearer ${token}` }
-  });
+  const r = await spotifyRequest(token => fetch(
+    "https://api.spotify.com/v1/me/player/currently-playing",
+    { headers: { Authorization: `Bearer ${token}` } }
+  ));
 
   if (r.status === 204) return null; // nothing playing
   if (!r.ok) throw new Error(`Currently-playing failed: ${r.status} ${await r.text()}`);
@@ -491,4 +547,3 @@ app.all("/group", async (req, res) => {
 app.listen(Number(PORT), () =>
   console.log(`add-current listening on http://localhost:${PORT}`)
 );
-
