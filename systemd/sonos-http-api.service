@@ -4,8 +4,8 @@ After=network.target
 
 [Service]
 Type=simple
-User=aspain
-WorkingDirectory=/home/aspain/spainify/apps/sonos-http-api
+User=__SPAINIFY_USER__
+WorkingDirectory=__SPAINIFY_ROOT__/apps/sonos-http-api
 ExecStart=/usr/bin/npm start
 Restart=always
 Environment=NODE_ENV=production

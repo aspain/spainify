@@ -2,15 +2,11 @@ import os
 import time
 import logging
 import datetime
-import pytz
 import requests
 import subprocess
 import signal
 import shutil
 import json
-
-# Timezone setup
-eastern = pytz.timezone('US/Eastern')
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -19,7 +15,8 @@ logging.basicConfig(level=logging.INFO)
 SONOS_SESSION = requests.Session()
 
 # Chromium user data directory
-CHROMIUM_USER_DATA_SONIFY = '/home/aspain/spainify/apps/spotify-display/chromium_sonify'
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+CHROMIUM_USER_DATA_SONIFY = os.path.join(SCRIPT_DIR, "chromium_sonify")
 LAST_SANITIZE_FILENAME = "last_sanitize"
 NEEDS_SANITIZE_FILENAME = "needs_sanitize"
 
@@ -368,7 +365,7 @@ def main():
 
     while running:
         try:
-            now = datetime.datetime.now(eastern)
+            now = datetime.datetime.now()
             current_hour = now.hour
             sonos_playing = sonos_is_playing()
 

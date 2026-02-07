@@ -5,10 +5,10 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=aspain
-WorkingDirectory=/home/aspain/spainify/apps/add-current
-EnvironmentFile=/home/aspain/spainify/apps/add-current/.env
-ExecStart=/usr/bin/node /home/aspain/spainify/apps/add-current/server.js
+User=__SPAINIFY_USER__
+WorkingDirectory=__SPAINIFY_ROOT__/apps/add-current
+EnvironmentFile=__SPAINIFY_ROOT__/apps/add-current/.env
+ExecStart=/usr/bin/node __SPAINIFY_ROOT__/apps/add-current/server.js
 Restart=always
 RestartSec=3
 Environment=NODE_ENV=production

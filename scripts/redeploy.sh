@@ -3,6 +3,30 @@ set -euo pipefail
 
 # Always run from repo root
 cd "$(dirname "$0")/.."
+ROOT_DIR="$(pwd)"
+SPAINIFY_USER="${SUDO_USER:-${USER:-$(id -un)}}"
+
+escape_sed_replacement() {
+  printf '%s' "$1" | sed -e 's/[\/&|]/\\&/g'
+}
+
+render_and_install_unit() {
+  local src="$1"
+  local dst="$2"
+  local escaped_root
+  local escaped_user
+  escaped_root="$(escape_sed_replacement "$ROOT_DIR")"
+  escaped_user="$(escape_sed_replacement "$SPAINIFY_USER")"
+
+  local tmp
+  tmp="$(mktemp)"
+  sed \
+    -e "s|__SPAINIFY_ROOT__|$escaped_root|g" \
+    -e "s|__SPAINIFY_USER__|$escaped_user|g" \
+    "$src" > "$tmp"
+  sudo install -m 0644 "$tmp" "$dst"
+  rm -f "$tmp"
+}
 
 echo "==> Installing Node dependencies..."
 for dir in \
@@ -70,11 +94,11 @@ fi
 
 echo
 echo "==> Updating systemd unit files from repo and restarting services..."
-sudo cp systemd/add-current.service        /etc/systemd/system/add-current.service
-sudo cp systemd/spotify_display.service    /etc/systemd/system/spotify_display.service
-sudo cp systemd/weather-dashboard.service  /etc/systemd/system/weather-dashboard.service
-sudo cp systemd/sonos-http-api.service     /etc/systemd/system/sonos-http-api.service
-sudo cp systemd/sonify-serve.service       /etc/systemd/system/sonify-serve.service
+render_and_install_unit systemd/add-current.service        /etc/systemd/system/add-current.service
+render_and_install_unit systemd/spotify_display.service    /etc/systemd/system/spotify_display.service
+render_and_install_unit systemd/weather-dashboard.service  /etc/systemd/system/weather-dashboard.service
+render_and_install_unit systemd/sonos-http-api.service     /etc/systemd/system/sonos-http-api.service
+render_and_install_unit systemd/sonify-serve.service       /etc/systemd/system/sonify-serve.service
 
 sudo systemctl daemon-reload
 

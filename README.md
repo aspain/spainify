@@ -24,7 +24,7 @@ This project contains a set of locally hosted apps and services with features in
 
 **Apps/services included:**
 
-* **Sonos HTTP API** (`apps/sonos-http-api`) - An unmodified fork of [node-sonos-http-api](https://github.com/jishi/node-sonos-http-api)
+* **Sonos HTTP API** (`apps/sonos-http-api`) - Forked from [node-sonos-http-api](https://github.com/jishi/node-sonos-http-api) with a small local `/album-art` proxy addition
 * **Add Current Track to Spotify microservice** (`apps/add-current`)
 * **Spotify Display Controller** (`apps/spotify-display`)
 * **Weather Dashboard (React)** (`apps/weather-dashboard`)
@@ -117,6 +117,8 @@ HIDE_CURSOR_WHILE_DISPLAYING=1
 HIDE_CURSOR_IDLE_SECONDS=0.1
 ```
 
+The weather window (7 AM to 9 AM) follows the Pi's local system timezone.
+
 For cursor hiding support, install once on the Pi:
 
 ```bash
@@ -191,11 +193,8 @@ cd ~/spainify
 What `setup.sh` does:
 
 1. Ensures `.env` files exist for `add-current`, `weather-dashboard`, and `spotify-display`
-2. Copies `systemd/*.service` into `/etc/systemd/system/`
-3. Runs `systemctl daemon-reload`
-4. Enables all project services so they start on boot
-5. Runs `./scripts/redeploy.sh`
-6. Restarts all relevant services
+2. Runs `./scripts/redeploy.sh` (installs deps, builds frontends, installs systemd units, reloads daemon, restarts services)
+3. Enables all project services so they start on boot
 
 After this, services should come up automatically on boot.
 
@@ -217,7 +216,7 @@ The `redeploy.sh` script:
 * Builds React (weather-dashboard) and Vue (sonify) frontends
 * Creates/updates the Python virtualenv at `backend/venv`
 * Installs `apps/spotify-display/requirements.txt` into that venv
-* Syncs systemd unit files from `systemd/` to `/etc/systemd/system/`
+* Renders systemd unit templates in `systemd/` for your current username/repo path, then installs them into `/etc/systemd/system/`
 * Reloads and restarts the services
 
 If you change only frontend code or Python logic, re-running `./scripts/redeploy.sh` is usually enough.

@@ -3,10 +3,10 @@ Description=Weather Dashboard Service
 After=network.target
 
 [Service]
-WorkingDirectory=/home/aspain/spainify/apps/weather-dashboard
+WorkingDirectory=__SPAINIFY_ROOT__/apps/weather-dashboard
 ExecStart=/usr/bin/npm run serve:prod
 Restart=always
-User=aspain
+User=__SPAINIFY_USER__
 
 [Install]
 WantedBy=multi-user.target

@@ -5,12 +5,12 @@ Wants=network-online.target weather-dashboard.service sonify-serve.service sonos
 
 [Service]
 Type=simple
-User=aspain
+User=__SPAINIFY_USER__
 # We keep the venv under backend, but the code under apps/spotify-display
-WorkingDirectory=/home/aspain/spainify
-EnvironmentFile=-/home/aspain/spainify/apps/spotify-display/.env
-ExecStartPre=/home/aspain/spainify/backend/venv/bin/python /home/aspain/spainify/apps/spotify-display/wait_for_ready_state.py
-ExecStart=/home/aspain/spainify/backend/venv/bin/python /home/aspain/spainify/apps/spotify-display/spotify_display_control.py
+WorkingDirectory=__SPAINIFY_ROOT__
+EnvironmentFile=-__SPAINIFY_ROOT__/apps/spotify-display/.env
+ExecStartPre=__SPAINIFY_ROOT__/backend/venv/bin/python __SPAINIFY_ROOT__/apps/spotify-display/wait_for_ready_state.py
+ExecStart=__SPAINIFY_ROOT__/backend/venv/bin/python __SPAINIFY_ROOT__/apps/spotify-display/spotify_display_control.py
 Environment="DISPLAY=:0"
 Restart=always
 RestartSec=5
