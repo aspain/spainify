@@ -33,6 +33,15 @@ ensure_env "$ROOT_DIR/apps/weather-dashboard" ".env.example" ".env"
 ensure_env "$ROOT_DIR/apps/spotify-display" ".env.example" ".env"
 
 echo
+echo "==> Enabling systemd services to start on boot"
+sudo systemctl enable \
+  add-current.service \
+  spotify_display.service \
+  weather-dashboard.service \
+  sonos-http-api.service \
+  sonify-serve.service
+
+echo
 echo "==> Running first deploy (installs deps, builds frontend, updates systemd)"
 "$ROOT_DIR/scripts/redeploy.sh"
 

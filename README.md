@@ -5,7 +5,7 @@ This project contains a set of locally hosted apps and services with features in
 - Local weather dashboard: displays local forecast during a scheduled window, via free OpenWeather API
 - Custom local network endpoints: add the currently-playing song to a Spotify playlist which can be set up as a single-click iOS shortcut, and includes de-dupe to prevent the same song from being added multiple times
 - Full Sonos controls: group/ungroup rooms, adjust volume, play/pause/skip tracks, etc. via iOS shortcuts, no longer need to use the clunky Sonos app
-- Sonos pressets: combine multiple actions (group rooms, set volume, add playlist to queue, play in shuffle, etc) all into a single iOS shortcut
+- Sonos presets: combine multiple actions (group rooms, set volume, add playlist to queue, play in shuffle, etc) all into a single iOS shortcut
 - Auto display sleep/wake behavior: based on playback and schedule
 
 **Now-playing example:**
@@ -190,10 +190,10 @@ cd ~/spainify
 
 What `setup.sh` does:
 
-1. Ensures `.env` files exist for `add-current` and `weather-dashboard`
+1. Ensures `.env` files exist for `add-current`, `weather-dashboard`, and `spotify-display`
 2. Copies `systemd/*.service` into `/etc/systemd/system/`
 3. Runs `systemctl daemon-reload`
-4. Enables all the Sonos display services
+4. Enables all project services so they start on boot
 5. Runs `./scripts/redeploy.sh`
 6. Restarts all relevant services
 
