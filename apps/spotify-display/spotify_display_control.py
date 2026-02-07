@@ -32,6 +32,17 @@ WEATHER_START_HOUR = 7
 WEATHER_END_HOUR = 9
 
 
+def _env_bool(name, default=False):
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+HIDE_CURSOR_WHILE_DISPLAYING = _env_bool("HIDE_CURSOR_WHILE_DISPLAYING", True)
+DEFAULT_CURSOR_IDLE_SECONDS = 0.1
+
+
 def _patch_json(path):
     try:
         with open(path, "r+", encoding="utf-8") as f:
@@ -215,30 +226,81 @@ def turn_display_off():
     result = os.system('vcgencmd display_power 0')
     logging.info(f"Display turned OFF, command result: {result}")
 
+def terminate_process_group(process, process_name):
+    """Terminate a process group with TERM then KILL fallback."""
+    if not process:
+        return
+
+    try:
+        pgid = os.getpgid(process.pid)
+        os.killpg(pgid, signal.SIGTERM)
+        time.sleep(2)  # Allow graceful termination
+        if process.poll() is None:
+            try:
+                os.killpg(pgid, 0)
+            except ProcessLookupError:
+                logging.info("%s process group has been terminated.", process_name)
+            else:
+                logging.warning(
+                    "%s process group still alive after SIGTERM; sending SIGKILL.",
+                    process_name,
+                )
+                os.killpg(pgid, signal.SIGKILL)
+                logging.info("%s process group has been terminated.", process_name)
+        else:
+            logging.info("%s process group has been terminated.", process_name)
+    except ProcessLookupError:
+        logging.warning("%s process group already terminated.", process_name)
+    except Exception:
+        logging.exception("Error terminating %s process group.", process_name)
+
+
 def kill_chromium(chromium_process):
     """Terminate the Chromium process group."""
-    if chromium_process:
-        try:
-            pgid = os.getpgid(chromium_process.pid)
-            os.killpg(pgid, signal.SIGTERM)
-            time.sleep(2)  # Allow graceful termination
-            if chromium_process.poll() is None:
-                try:
-                    os.killpg(pgid, 0)
-                except ProcessLookupError:
-                    logging.info("Chromium process group has been terminated.")
-                else:
-                    logging.warning(
-                        "Chromium process group still alive after SIGTERM; sending SIGKILL."
-                    )
-                    os.killpg(pgid, signal.SIGKILL)
-                    logging.info("Chromium process group has been terminated.")
-            else:
-                logging.info("Chromium process group has been terminated.")
-        except ProcessLookupError:
-            logging.warning("Chromium process group already terminated.")
-        except Exception as e:
-            logging.exception("Error terminating Chromium process group.")
+    terminate_process_group(chromium_process, "Chromium")
+
+
+def launch_cursor_hider():
+    if not HIDE_CURSOR_WHILE_DISPLAYING:
+        return None
+
+    if shutil.which("unclutter") is None:
+        if not getattr(launch_cursor_hider, "_warned_missing", False):
+            logging.warning(
+                "Cursor hiding requested but `unclutter` is not installed. "
+                "Install it with: sudo apt install unclutter"
+            )
+            launch_cursor_hider._warned_missing = True
+        return None
+
+    idle_raw = os.getenv("HIDE_CURSOR_IDLE_SECONDS", str(DEFAULT_CURSOR_IDLE_SECONDS))
+    try:
+        idle_seconds = max(float(idle_raw), 0.0)
+    except ValueError:
+        logging.warning(
+            "Invalid HIDE_CURSOR_IDLE_SECONDS=%r; using default %.2fs.",
+            idle_raw,
+            DEFAULT_CURSOR_IDLE_SECONDS,
+        )
+        idle_seconds = DEFAULT_CURSOR_IDLE_SECONDS
+
+    args = ["unclutter", "-idle", str(idle_seconds), "-root"]
+    try:
+        process = subprocess.Popen(
+            args,
+            preexec_fn=os.setsid,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        logging.info("Cursor hider started (idle %.2fs).", idle_seconds)
+        return process
+    except Exception:
+        logging.exception("Failed to start cursor hider.")
+        return None
+
+
+def kill_cursor_hider(cursor_hider_process):
+    terminate_process_group(cursor_hider_process, "Cursor hider")
 
 def launch_chromium(
     url,
@@ -291,6 +353,7 @@ def main():
     last_cleanup_hour = None
     browser_url = None  # Tracks current mode: 'sonify' or 'weather'
     chromium_process = None
+    cursor_hider_process = None
     last_sonos_playing = None
     sanitize_next_launch = True
     running = True
@@ -371,6 +434,14 @@ def main():
                         chromium_process = None
                         browser_url = None
 
+            should_hide_cursor = browser_url is not None and HIDE_CURSOR_WHILE_DISPLAYING
+            if should_hide_cursor:
+                if cursor_hider_process is None or cursor_hider_process.poll() is not None:
+                    cursor_hider_process = launch_cursor_hider()
+            elif cursor_hider_process is not None:
+                kill_cursor_hider(cursor_hider_process)
+                cursor_hider_process = None
+
             # Optionally clean user data directories every hour
             if now.minute == 0 and now.second < 15 and now.hour != last_cleanup_hour:
                 logging.info("Cleaning user data directories.")
@@ -384,6 +455,9 @@ def main():
     if chromium_process is not None:
         logging.info("Stopping Chromium before exit.")
         kill_chromium(chromium_process)
+    if cursor_hider_process is not None:
+        logging.info("Stopping cursor hider before exit.")
+        kill_cursor_hider(cursor_hider_process)
 
 if __name__ == '__main__':
     main()

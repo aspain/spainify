@@ -109,6 +109,18 @@ Template: `apps/spotify-display/.env.example`
 ```ini
 # Optional: override the Sonos room to monitor for playback
 SONOS_ROOM=Living Room
+
+# Optional: hide cursor only while Sonify/Weather is displayed
+HIDE_CURSOR_WHILE_DISPLAYING=1
+
+# Optional: idle seconds before cursor is hidden
+HIDE_CURSOR_IDLE_SECONDS=0.1
+```
+
+For cursor hiding support, install once on the Pi:
+
+```bash
+sudo apt install unclutter
 ```
 
 ### `apps/sonify`
