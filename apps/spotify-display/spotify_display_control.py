@@ -22,7 +22,6 @@ SONOS_SESSION = requests.Session()
 CHROMIUM_USER_DATA_SONIFY = '/home/aspain/spainify/apps/spotify-display/chromium_sonify'
 LAST_SANITIZE_FILENAME = "last_sanitize"
 NEEDS_SANITIZE_FILENAME = "needs_sanitize"
-SANITIZE_COOLDOWN_SECONDS = 60 * 60
 
 # URLs for displays
 SONIFY_URL = "http://localhost:5000"
@@ -31,6 +30,7 @@ WEATHER_URL = "http://localhost:3000"
 # Weather display hours (7 AM to 9 AM)
 WEATHER_START_HOUR = 7
 WEATHER_END_HOUR = 9
+
 
 def _patch_json(path):
     try:
@@ -70,10 +70,6 @@ def sanitize_chromium_profile(user_data_dir, force_sanitize=False):
     if exited_cleanly is not False and not needs_sanitize and not force_sanitize:
         return
 
-    if not force_sanitize and not _should_sanitize(last_sanitize_path):
-        logging.info("Skipping Chromium profile sanitize due to recent run.")
-        return
-
     # fix flags that trigger the restore bubble
     _patch_json(os.path.join(user_data_dir, "Local State"))
     _patch_json(os.path.join(user_data_dir, "Default", "Preferences"))
@@ -111,17 +107,6 @@ def _read_exited_cleanly(user_data_dir):
         return False
 
 
-def _should_sanitize(last_sanitize_path, cooldown_seconds=SANITIZE_COOLDOWN_SECONDS):
-    try:
-        if not os.path.exists(last_sanitize_path):
-            return True
-        last_mtime = os.path.getmtime(last_sanitize_path)
-        return (time.time() - last_mtime) >= cooldown_seconds
-    except Exception:
-        logging.exception("Failed to evaluate sanitize cooldown.")
-        return True
-
-
 def _mark_sanitized(last_sanitize_path, needs_sanitize_path):
     try:
         with open(last_sanitize_path, "w", encoding="utf-8") as f:
@@ -144,32 +129,82 @@ def sonos_is_playing(room=SONOS_ROOM, grace_seconds=5, force_refresh=False, cach
     else:
         try:
             zones = SONOS_SESSION.get("http://localhost:5005/zones", timeout=3).json()
+            if not isinstance(zones, list):
+                logging.warning("Unexpected Sonos zones payload type: %s", type(zones).__name__)
+                zones = []
             sonos_is_playing._last_zones = zones
             sonos_is_playing._last_zones_ts = now
-        except requests.RequestException as exc:
+        except (requests.RequestException, ValueError) as exc:
             logging.warning("Sonos zones request failed: %s", exc)
             if cached_zones is None:
                 return False
             zones = cached_zones
 
     # find the zone group that has our target room as a member
-    grp = next((z for z in zones if any(m["roomName"] == room for m in z["members"])), None)
+    grp = None
+    for zone in zones:
+        if not isinstance(zone, dict):
+            continue
+        members = zone.get("members")
+        if not isinstance(members, list):
+            continue
+        if any(isinstance(m, dict) and m.get("roomName") == room for m in members):
+            grp = zone
+            break
+
     if not grp:
         return False
 
     # is any member actually playing a track?
     now = time.monotonic()
     playing = False
-    for m in grp["members"]:
-        st = m["state"]
-        if st["playbackState"] in ("PLAYING","TRANSITIONING") \
-           and st["currentTrack"].get("type") == "track" \
-           and st["currentTrack"].get("title"):
+    members = grp.get("members") if isinstance(grp, dict) else None
+    if not isinstance(members, list):
+        members = []
+
+    for m in members:
+        if not isinstance(m, dict):
+            continue
+        st = m.get("state")
+        if not isinstance(st, dict):
+            continue
+        current_track = st.get("currentTrack")
+        if not isinstance(current_track, dict):
+            current_track = {}
+
+        if st.get("playbackState") in ("PLAYING", "TRANSITIONING") \
+           and current_track.get("type") == "track" \
+           and current_track.get("title"):
             playing = True
             sonos_is_playing._last_true = now
             break
 
     return playing or (now - getattr(sonos_is_playing, "_last_true", 0)) < grace_seconds
+
+
+def get_display_power_state(default=True):
+    try:
+        result = subprocess.run(
+            ["vcgencmd", "display_power"],
+            capture_output=True,
+            text=True,
+            timeout=3,
+            check=False,
+        )
+        if result.returncode != 0:
+            logging.warning("Failed to read display power state (exit %s).", result.returncode)
+            return default
+
+        output = result.stdout.strip()
+        if output.endswith("=1"):
+            return True
+        if output.endswith("=0"):
+            return False
+
+        logging.warning("Unexpected display power output: %s", output)
+    except Exception:
+        logging.exception("Failed to read display power state.")
+    return default
 
 
 def turn_display_on():
@@ -252,23 +287,52 @@ def clean_user_data_dir(user_data_dir):
         logging.exception(f"Failed to clean user data directory {user_data_dir}")
 
 def main():
-    display_on = True  # Assume the display is initially on
+    display_on = get_display_power_state(default=False)
     last_cleanup_hour = None
     browser_url = None  # Tracks current mode: 'sonify' or 'weather'
     chromium_process = None
+    last_sonos_playing = None
+    sanitize_next_launch = True
+    running = True
 
-    while True:
+    def handle_shutdown_signal(signum, frame):
+        nonlocal running
+        logging.info("Received signal %s, shutting down display controller.", signum)
+        running = False
+
+    signal.signal(signal.SIGTERM, handle_shutdown_signal)
+    signal.signal(signal.SIGINT, handle_shutdown_signal)
+
+    while running:
         try:
             now = datetime.datetime.now(eastern)
             current_hour = now.hour
+            sonos_playing = sonos_is_playing()
 
-            if sonos_is_playing():
-                logging.info("Music is playing on Sonos.")
+            if sonos_playing != last_sonos_playing:
+                if sonos_playing:
+                    logging.info("Music is playing on Sonos.")
+                else:
+                    logging.info("No active Sonos track playback.")
+                last_sonos_playing = sonos_playing
+
+            if sonos_playing:
                 if not display_on or browser_url != 'sonify':
                     logging.info("Switching to Sonify display.")
                     kill_chromium(chromium_process)
-                    chromium_process = launch_chromium(SONIFY_URL, CHROMIUM_USER_DATA_SONIFY, scale_factor=0.8)
-                    browser_url = 'sonify'
+                    new_process = launch_chromium(
+                        SONIFY_URL,
+                        CHROMIUM_USER_DATA_SONIFY,
+                        scale_factor=0.8,
+                        force_sanitize=sanitize_next_launch,
+                    )
+                    if new_process:
+                        chromium_process = new_process
+                        browser_url = 'sonify'
+                        sanitize_next_launch = False
+                    else:
+                        chromium_process = None
+                        browser_url = None
                     if not display_on:
                         turn_display_on()
                         display_on = True
@@ -279,8 +343,19 @@ def main():
                     if not display_on or browser_url != 'weather':
                         logging.info("Displaying Weather Dashboard.")
                         kill_chromium(chromium_process)
-                        chromium_process = launch_chromium(WEATHER_URL, CHROMIUM_USER_DATA_SONIFY, hide_scrollbars=True)
-                        browser_url = 'weather'
+                        new_process = launch_chromium(
+                            WEATHER_URL,
+                            CHROMIUM_USER_DATA_SONIFY,
+                            hide_scrollbars=True,
+                            force_sanitize=sanitize_next_launch,
+                        )
+                        if new_process:
+                            chromium_process = new_process
+                            browser_url = 'weather'
+                            sanitize_next_launch = False
+                        else:
+                            chromium_process = None
+                            browser_url = None
                         if not display_on:
                             turn_display_on()
                             display_on = True
@@ -305,6 +380,10 @@ def main():
         except Exception as e:
             logging.exception("An error occurred during display check.")
         time.sleep(15)
+
+    if chromium_process is not None:
+        logging.info("Stopping Chromium before exit.")
+        kill_chromium(chromium_process)
 
 if __name__ == '__main__':
     main()

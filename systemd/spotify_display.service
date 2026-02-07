@@ -1,7 +1,7 @@
 [Unit]
 Description=Spotify Display Control
-After=network.target weather-dashboard.service
-Requires=weather-dashboard.service
+After=network-online.target weather-dashboard.service sonify-serve.service sonos-http-api.service
+Wants=network-online.target weather-dashboard.service sonify-serve.service sonos-http-api.service
 
 [Service]
 Type=simple
@@ -9,10 +9,11 @@ User=aspain
 # We keep the venv under backend, but the code under apps/spotify-display
 WorkingDirectory=/home/aspain/spainify
 EnvironmentFile=-/home/aspain/spainify/apps/spotify-display/.env
-ExecStartPre=/bin/sleep 30
+ExecStartPre=/home/aspain/spainify/backend/venv/bin/python /home/aspain/spainify/apps/spotify-display/wait_for_ready_state.py
 ExecStart=/home/aspain/spainify/backend/venv/bin/python /home/aspain/spainify/apps/spotify-display/spotify_display_control.py
 Environment="DISPLAY=:0"
 Restart=always
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
