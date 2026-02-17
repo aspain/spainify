@@ -16,12 +16,77 @@ This project contains a set of locally hosted apps and services with features in
 - Sonos presets: combine multiple actions (group rooms, set volume, add playlist to queue, play in shuffle, etc) all into a single iOS shortcut
 - Auto display sleep/wake behavior: based on playback and schedule
 
-**Ports/URLs (defaults):**
-- Sonify UI: `http://localhost:5000`
-- Weather dashboard: `http://localhost:3000`
-- Sonos HTTP API: `http://localhost:5005`
-- Add-current microservice: `http://localhost:3030`
-- Spotify auth helper (only for add-to-playlist; now-playing needs no auth): `http://<pi-ip>:8888/login`
+## Hardware Requirements
+
+* Raspberry Pi - I used a [Raspberry Pi 4](https://www.amazon.com/dp/B07TC2BK1X?th=1) and a separate [power adapter](https://www.amazon.com/dp/B07VFDYNL4)
+* LCD Screen - I used a [7.9" Waveshare](https://www.waveshare.com/7.9inch-hdmi-lcd.htm)
+
+---
+
+## First-Time Setup
+
+From your Pi:
+
+```bash
+git clone https://github.com/aspain/spainify.git
+cd spainify
+```
+
+The now-playing display does not require Spotify auth. Spotify credentials and auth are only needed if you want the add-to-playlist feature.
+
+### 1. Create `.env` files
+
+```bash
+# Required for weather dashboard
+cp apps/weather-dashboard/.env.example apps/weather-dashboard/.env
+
+nano apps/weather-dashboard/.env
+
+# Optional: add-current (for add-to-playlist)
+cp apps/add-current/.env.example apps/add-current/.env
+nano apps/add-current/.env
+```
+
+Fill in:
+
+* OpenWeather API key and city name
+* Optional (add-to-playlist): Spotify client ID/secret/playlist ID and refresh token
+
+### 2. Optional: one-time Spotify auth (to get the refresh token)
+
+```bash
+cd apps/add-current
+node auth.js
+```
+
+Then in a browser:
+
+1. Open `http://<pi-ip>:8888/login`
+2. Approve the Spotify permissions
+3. Copy the `refresh_token` shown
+4. Paste it into `apps/add-current/.env` as `SPOTIFY_REFRESH_TOKEN`
+5. Stop the auth server with `Ctrl+C`
+
+You only need to do this once per Spotify app/client.
+
+### 3. Install and enable systemd services (first time)
+
+From the repo root:
+
+```bash
+cd ~/spainify
+./setup.sh
+```
+
+What `setup.sh` does:
+
+1. Ensures `.env` files exist for `add-current`, `weather-dashboard`, and `spotify-display`
+2. Runs `./scripts/redeploy.sh` (installs deps, builds frontends, installs systemd units, reloads daemon, restarts services)
+3. Enables all project services so they start on boot
+
+After this, services should come up automatically on boot.
+
+---
 
 **Apps/services included:**
 
@@ -33,12 +98,12 @@ This project contains a set of locally hosted apps and services with features in
 * **Systemd service definitions** (`systemd/`)
 * **Deployment script** (`scripts/redeploy.sh`) - Script to run to avoid all doubt for which services to restart upon making changes
 
----
-
-## Hardware Requirements
-
-* Raspberry Pi - I used a [Raspberry Pi 4](https://www.amazon.com/dp/B07TC2BK1X?th=1) and a separate [power adapter](https://www.amazon.com/dp/B07VFDYNL4)
-* LCD Screen - I used a [7.9" Waveshare](https://www.waveshare.com/7.9inch-hdmi-lcd.htm)
+**Ports/URLs (defaults):**
+- Sonify UI: `http://localhost:5000`
+- Weather dashboard: `http://localhost:3000`
+- Sonos HTTP API: `http://localhost:5005`
+- Add-current microservice: `http://localhost:3030`
+- Spotify auth helper (only for add-to-playlist; now-playing needs no auth): `http://<pi-ip>:8888/login`
 
 ---
 
@@ -133,71 +198,6 @@ sudo apt install unclutter
   * Copy `apps/sonify/.env.local.example` to `apps/sonify/.env.local`
   * Set `VUE_APP_SONOS_ROOM` (preferred) or `VITE_SONOS_ROOM` (legacy fallback)
   * Default remains `"Living Room"` if unset.
-
----
-
-## First-Time Setup
-
-From your Pi:
-
-```bash
-git clone https://github.com/aspain/spainify.git
-cd spainify
-```
-
-The now-playing display does not require Spotify auth. Spotify credentials and auth are only needed if you want the add-to-playlist feature.
-
-### 1. Create `.env` files
-
-```bash
-# Required for weather dashboard
-cp apps/weather-dashboard/.env.example apps/weather-dashboard/.env
-
-nano apps/weather-dashboard/.env
-
-# Optional: add-current (for add-to-playlist)
-cp apps/add-current/.env.example apps/add-current/.env
-nano apps/add-current/.env
-```
-
-Fill in:
-
-* OpenWeather API key and city name
-* Optional (add-to-playlist): Spotify client ID/secret/playlist ID and refresh token
-
-### 2. Optional: one-time Spotify auth (to get the refresh token)
-
-```bash
-cd apps/add-current
-node auth.js
-```
-
-Then in a browser:
-
-1. Open `http://<pi-ip>:8888/login`
-2. Approve the Spotify permissions
-3. Copy the `refresh_token` shown
-4. Paste it into `apps/add-current/.env` as `SPOTIFY_REFRESH_TOKEN`
-5. Stop the auth server with `Ctrl+C`
-
-You only need to do this once per Spotify app/client.
-
-### 3. Install and enable systemd services (first time)
-
-From the repo root:
-
-```bash
-cd ~/spainify
-./setup.sh
-```
-
-What `setup.sh` does:
-
-1. Ensures `.env` files exist for `add-current`, `weather-dashboard`, and `spotify-display`
-2. Runs `./scripts/redeploy.sh` (installs deps, builds frontends, installs systemd units, reloads daemon, restarts services)
-3. Enables all project services so they start on boot
-
-After this, services should come up automatically on boot.
 
 ---
 
