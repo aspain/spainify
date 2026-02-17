@@ -1,4 +1,12 @@
 # Overview
+A Raspberry Pi home media hub for Sonos control, Spotify now-playing display, and local weather at a glance.
+
+**Now-playing example:**
+![now playing](assets/images/now_playing.png)
+
+
+**Weather dashboard example:**
+![weather dashboard](assets/images/weather.png)
 
 This project contains a set of locally hosted apps and services with features including:
 - Sonos and Spotify now-playing LCD: displays artist, track title and album artwork with a vibrant, dynamic background color chosen from the album artwork
@@ -7,13 +15,6 @@ This project contains a set of locally hosted apps and services with features in
 - Full Sonos controls: group/ungroup rooms, adjust volume, play/pause/skip tracks, etc. via iOS shortcuts, no longer need to use the clunky Sonos app
 - Sonos presets: combine multiple actions (group rooms, set volume, add playlist to queue, play in shuffle, etc) all into a single iOS shortcut
 - Auto display sleep/wake behavior: based on playback and schedule
-
-**Now-playing example:**
-![now playing](assets/images/now_playing.png)
-
-
-**Weather dashboard example:**
-![weather dashboard](assets/images/weather.png)
 
 **Ports/URLs (defaults):**
 - Sonify UI: `http://localhost:5000`
