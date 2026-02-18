@@ -108,23 +108,6 @@ After this, services should come up automatically on boot.
 
 ---
 
-## Project Structure
-
-```text
-apps/
-  add-current/
-  sonos-http-api/
-  spotify-display/
-  weather-dashboard/
-  sonify/
-scripts/
-  redeploy.sh
-systemd/
-setup.sh
-```
-
----
-
 ## Environment Variables
 
 Each app that needs secrets uses a local `.env` file which is **not** committed to git.
