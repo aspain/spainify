@@ -130,10 +130,7 @@ export default {
     getElementOverflow(element) {
       if (!element) return false
       const EPSILON_PX = 2
-      return (
-        element.scrollHeight - element.clientHeight > EPSILON_PX ||
-        element.scrollWidth - element.clientWidth > EPSILON_PX
-      )
+      return element.scrollHeight - element.clientHeight > EPSILON_PX
     },
 
     getNowPlayingOverflow() {
