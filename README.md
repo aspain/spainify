@@ -19,7 +19,8 @@ This project contains a set of locally hosted apps and services with features in
 ## Hardware Requirements
 
 * Raspberry Pi - I used a [Raspberry Pi 4](https://www.amazon.com/dp/B07TC2BK1X?th=1) and a separate [power adapter](https://www.amazon.com/dp/B07VFDYNL4)
-* LCD Screen - I used a [7.9" Waveshare](https://www.waveshare.com/7.9inch-hdmi-lcd.htm)
+* LCD Screen - I used a [7.9" Waveshare](https://www.waveshare.com/7.9inch-hdmi-lcd.htm) / [Amazon](https://www.amazon.com/dp/B087CNJYB4)
+* [Micro SD Card](https://www.amazon.com/dp/B08J4HJ98L?th=1)
 
 ---
 
