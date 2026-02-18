@@ -37,6 +37,7 @@ export default {
         playing: false,
         trackAlbum: {},
         trackArtists: [],
+        trackKey: '',
         trackTitle: ''
       })
     }
@@ -48,6 +49,15 @@ export default {
         return this.player.trackArtists.join(', ')
       }
       return this.player.trackArtists || ''
+    },
+
+    colorRefreshKey() {
+      if (!this.player.playing) return ''
+
+      const trackKey = this.player.trackKey || ''
+      const paletteSrc = this.player.trackAlbum?.paletteSrc || ''
+
+      return `${trackKey}::${paletteSrc}`
     }
   },
 
@@ -187,11 +197,13 @@ export default {
   },
 
   watch: {
-    /* NEW — pass the proxied URL to Vibrant so CORS never blocks us */
-    'player.trackAlbum.paletteSrc': {
+    colorRefreshKey: {
       immediate: true,
-      handler(newVal) {
-        if (newVal) this.updateColors(newVal)
+      handler() {
+        const paletteSrc = this.player.trackAlbum?.paletteSrc
+        if (this.player.playing && paletteSrc) {
+          this.updateColors(paletteSrc)
+        }
       }
     }
   }

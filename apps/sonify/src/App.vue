@@ -17,6 +17,7 @@ export default {
         playing: false,
         trackArtists: [],
         trackTitle: '',
+        trackKey: '',
         trackAlbum: {
           image: '',
           paletteSrc: ''
@@ -132,10 +133,22 @@ export default {
                 : image;
 
             /* Update reactive data */
+            const trackKey =
+              trackState.uri ||
+              [
+                trackState.title,
+                trackState.artist,
+                trackState.absoluteAlbumArtUri,
+                trackState.albumArtUri
+              ]
+                .filter(Boolean)
+                .join('::')
+
             this.player = {
               playing: true,
               trackTitle: trackState.title,
               trackArtists: [trackState.artist],
+              trackKey,
               trackAlbum: { image, paletteSrc }
             };
 
