@@ -79,6 +79,20 @@
     justify-content: center;
   }
 
+  &--title-extended {
+    .now-playing__track {
+      -webkit-line-clamp: 4;
+      max-height: calc(86px * 4 + 30px);
+    }
+  }
+
+  &--artists-extended {
+    .now-playing__artists {
+      -webkit-line-clamp: 3;
+      max-height: calc(82px * 3 + 20px);
+    }
+  }
+
   &--idle {
     display: flex;
     align-items: center;

@@ -4,6 +4,7 @@
       v-if="player.playing"
       class="now-playing"
       :class="getNowPlayingClass()"
+      ref="nowPlaying"
     >
       <div class="now-playing__cover">
         <img
@@ -13,8 +14,16 @@
         />
       </div>
       <div class="now-playing__details">
-        <h1 class="now-playing__track" v-text="player.trackTitle"></h1>
-        <h2 class="now-playing__artists" v-text="getTrackArtists"></h2>
+        <h1
+          ref="trackText"
+          class="now-playing__track"
+          v-text="player.trackTitle"
+        ></h1>
+        <h2
+          ref="artistsText"
+          class="now-playing__artists"
+          v-text="getTrackArtists"
+        ></h2>
       </div>
     </div>
     <div v-else class="now-playing" :class="getNowPlayingClass()">
@@ -28,6 +37,14 @@ import * as Vibrant from 'node-vibrant'
 
 export default {
   name: 'NowPlaying',
+
+  data() {
+    return {
+      titleNeedsExtended: false,
+      artistsNeedExtended: false,
+      overflowCheckRaf: 0
+    }
+  },
 
   props: {
     player: {
@@ -64,9 +81,89 @@ export default {
     }
   },
 
+  mounted() {
+    window.addEventListener('resize', this.handleWindowResize)
+    this.scheduleOverflowCheck()
+  },
+
+  beforeDestroy() {
+    window.removeEventListener('resize', this.handleWindowResize)
+    if (this.overflowCheckRaf) {
+      window.cancelAnimationFrame(this.overflowCheckRaf)
+      this.overflowCheckRaf = 0
+    }
+  },
+
   methods: {
     getNowPlayingClass() {
-      return this.player.playing ? 'now-playing--active' : 'now-playing--idle'
+      const classes = [
+        this.player.playing ? 'now-playing--active' : 'now-playing--idle'
+      ]
+
+      if (this.titleNeedsExtended) classes.push('now-playing--title-extended')
+      if (this.artistsNeedExtended) classes.push('now-playing--artists-extended')
+
+      return classes
+    },
+
+    handleWindowResize() {
+      this.scheduleOverflowCheck()
+    },
+
+    scheduleOverflowCheck() {
+      if (this.overflowCheckRaf) {
+        window.cancelAnimationFrame(this.overflowCheckRaf)
+        this.overflowCheckRaf = 0
+      }
+
+      this.$nextTick(() => {
+        this.overflowCheckRaf = window.requestAnimationFrame(() => {
+          this.overflowCheckRaf = 0
+          this.updateOverflowState()
+        })
+      })
+    },
+
+    measureOverflowAtBaseClamp(element, baseLineClamp, baseMaxHeightPx) {
+      if (!element) return false
+
+      const prevClamp = element.style.webkitLineClamp
+      const prevMaxHeight = element.style.maxHeight
+
+      element.style.webkitLineClamp = String(baseLineClamp)
+      element.style.maxHeight = `${baseMaxHeightPx}px`
+
+      const hasOverflow =
+        element.scrollHeight - element.clientHeight > 1 ||
+        element.scrollWidth - element.clientWidth > 1
+
+      element.style.webkitLineClamp = prevClamp
+      element.style.maxHeight = prevMaxHeight
+
+      return hasOverflow
+    },
+
+    updateOverflowState() {
+      if (!this.player.playing) {
+        this.titleNeedsExtended = false
+        this.artistsNeedExtended = false
+        return
+      }
+
+      const trackElement = this.$refs.trackText
+      const artistsElement = this.$refs.artistsText
+      if (!trackElement || !artistsElement) return
+
+      this.titleNeedsExtended = this.measureOverflowAtBaseClamp(
+        trackElement,
+        3,
+        288
+      )
+      this.artistsNeedExtended = this.measureOverflowAtBaseClamp(
+        artistsElement,
+        2,
+        184
+      )
     },
 
     updateColors(imageUrl) {
@@ -210,7 +307,25 @@ export default {
         if (this.player.playing && paletteSrc) {
           this.updateColors(paletteSrc)
         }
+
+        this.scheduleOverflowCheck()
       }
+    },
+
+    getTrackArtists() {
+      this.scheduleOverflowCheck()
+    },
+
+    'player.trackTitle'() {
+      this.scheduleOverflowCheck()
+    },
+
+    'player.playing'(isPlaying) {
+      if (!isPlaying) {
+        this.titleNeedsExtended = false
+        this.artistsNeedExtended = false
+      }
+      this.scheduleOverflowCheck()
     }
   }
 }
