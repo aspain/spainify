@@ -194,7 +194,11 @@ sudo apt install unclutter
 
 ### `apps/sonify`
 
-* No Spotify credentials required in this fork.
+* No Spotify credentials required directly in Sonify.
+* Optional Spotify metadata enrichment (full track title, full artist list, canonical album art):
+  * Uses the local `add-current` service at `http://localhost:3030`
+  * Requires valid Spotify credentials in `apps/add-current/.env`
+  * Optional override in `apps/sonify/.env.local`: `VUE_APP_ADD_CURRENT_BASE=http://localhost:3030`
 * Optional room override:
   * Copy `apps/sonify/.env.local.example` to `apps/sonify/.env.local`
   * Set `VUE_APP_SONOS_ROOM` (preferred) or `VITE_SONOS_ROOM` (legacy fallback)

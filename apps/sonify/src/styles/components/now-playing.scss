@@ -47,6 +47,8 @@
     text-overflow: ellipsis;
     max-height: calc(86px * 3 + 30px); /* Increased max-height by 10px */
     word-wrap: break-word;
+    overflow-wrap: anywhere;
+    text-wrap: balance;
     // padding-top: 0;
     margin-top: -20px;
     padding-bottom: 1px; /* Additional bottom padding */
@@ -65,6 +67,8 @@
     text-overflow: ellipsis;
     max-height: calc(82px * 2 + 20px); /* Adjusted max-height based on new line-height */
     word-wrap: break-word;
+    overflow-wrap: anywhere;
+    text-wrap: balance;
     padding-top: 1px; /* Additional top padding */
     padding-bottom: 5px; /* Reduced bottom padding to prevent overflow */
     box-sizing: border-box; /* Ensure padding is included in height */

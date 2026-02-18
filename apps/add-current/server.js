@@ -22,6 +22,16 @@ const {
 const app = express();
 
 app.use(express.json());
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
+  if (req.method === "OPTIONS") {
+    res.sendStatus(204);
+    return;
+  }
+  next();
+});
 
 const recentAdds = new Map(); // trackId -> timestamp
 const RECENT_TTL_MS = 10 * 60 * 1000; // 10 minutes
@@ -421,9 +431,64 @@ async function getSpotifyCurrentlyPlayingTrack() {
   return { trackId: id, title, artist };
 }
 
+async function getSpotifyTrackById(trackId) {
+  if (!trackId) throw new Error("Missing trackId");
+  const url = `https://api.spotify.com/v1/tracks/${encodeURIComponent(trackId)}`;
+  const j = await fetchSpotifyJsonWithRetry(url, 2, 4000);
+
+  const artists = Array.isArray(j?.artists)
+    ? j.artists.map(a => a?.name).filter(Boolean)
+    : [];
+
+  const albumImage =
+    Array.isArray(j?.album?.images) && j.album.images.length > 0
+      ? (j.album.images[0]?.url || "")
+      : "";
+
+  return {
+    trackId: j?.id || trackId,
+    title: j?.name || "",
+    artists,
+    albumImage,
+    albumName: j?.album?.name || "",
+    uri: j?.uri || "",
+    durationMs: Number.isFinite(Number(j?.duration_ms))
+      ? Number(j.duration_ms)
+      : null
+  };
+}
+
 /* ───────────────────────── Endpoints ───────────────────────── */
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
+
+app.get("/spotify-track/:trackId", async (req, res) => {
+  try {
+    if (!SPOTIFY_CLIENT_ID || !SPOTIFY_CLIENT_SECRET || !SPOTIFY_REFRESH_TOKEN) {
+      return res.status(503).json({
+        ok: false,
+        error: "Spotify API credentials are not configured on add-current"
+      });
+    }
+
+    const trackId = String(req.params.trackId || "").trim();
+    if (!/^[A-Za-z0-9]{8,64}$/.test(trackId)) {
+      return res.status(400).json({ ok: false, error: "Invalid Spotify track id" });
+    }
+
+    const track = await getSpotifyTrackById(trackId);
+    return res.json({ ok: true, ...track });
+  } catch (e) {
+    const message = String(e?.message || e);
+    if (message.startsWith("404")) {
+      return res.status(404).json({ ok: false, error: "Track not found on Spotify" });
+    }
+    if (message.startsWith("401")) {
+      return res.status(401).json({ ok: false, error: "Spotify auth failed" });
+    }
+    return res.status(500).json({ ok: false, error: message });
+  }
+});
 
 // Smart behavior: add currently playing song to indiepop vibez playlist - try Spotify first; if empty, fall back to Sonos (music-only)
 app.get("/add-current-smart", async (req, res) => {

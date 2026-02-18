@@ -22,7 +22,11 @@ export default {
           image: '',
           paletteSrc: ''
         }
-      }
+      },
+      spotifyMetadataBaseUrl:
+        process.env.VUE_APP_ADD_CURRENT_BASE || 'http://localhost:3030',
+      spotifyTrackMetaCache: Object.create(null),
+      spotifyTrackMetaInFlight: Object.create(null)
     }
   },
 
@@ -31,6 +35,84 @@ export default {
   },
 
   methods: {
+    extractSpotifyTrackId(uri) {
+      if (!uri) return ''
+
+      const encodedMatch = uri.match(/spotify%3atrack%3a([A-Za-z0-9]+)/)
+      if (encodedMatch && encodedMatch[1]) return encodedMatch[1]
+
+      const plainMatch = uri.match(/spotify:track:([A-Za-z0-9]+)/)
+      if (plainMatch && plainMatch[1]) return plainMatch[1]
+
+      return ''
+    },
+
+    async fetchSpotifyTrackMetadata(trackId) {
+      if (!trackId) return null
+
+      if (this.spotifyTrackMetaCache[trackId]) {
+        return this.spotifyTrackMetaCache[trackId]
+      }
+
+      if (this.spotifyTrackMetaInFlight[trackId]) {
+        return this.spotifyTrackMetaInFlight[trackId]
+      }
+
+      const request = fetch(
+        `${this.spotifyMetadataBaseUrl}/spotify-track/${encodeURIComponent(trackId)}`
+      )
+        .then(async response => {
+          if (!response.ok) return null
+          const payload = await response.json()
+          if (!payload || payload.ok === false) return null
+
+          const artists = Array.isArray(payload.artists)
+            ? payload.artists.filter(Boolean)
+            : []
+
+          const metadata = {
+            trackId: payload.trackId || trackId,
+            title: payload.title || '',
+            artists,
+            albumImage: payload.albumImage || ''
+          }
+
+          this.spotifyTrackMetaCache[trackId] = metadata
+          return metadata
+        })
+        .catch(() => null)
+        .finally(() => {
+          delete this.spotifyTrackMetaInFlight[trackId]
+        })
+
+      this.spotifyTrackMetaInFlight[trackId] = request
+      return request
+    },
+
+    async enrichPlayerFromSpotify(trackId, expectedTrackKey) {
+      const metadata = await this.fetchSpotifyTrackMetadata(trackId)
+      if (!metadata) return
+      if (!this.player.playing || this.player.trackKey !== expectedTrackKey) return
+
+      const nextTitle = metadata.title || this.player.trackTitle
+      const nextArtists = metadata.artists.length
+        ? metadata.artists
+        : this.player.trackArtists
+      const nextImage = metadata.albumImage || this.player.trackAlbum.image
+      const nextPaletteSrc = this.player.trackAlbum.paletteSrc || metadata.albumImage
+
+      this.player = {
+        playing: this.player.playing,
+        trackTitle: nextTitle,
+        trackArtists: nextArtists,
+        trackKey: this.player.trackKey,
+        trackAlbum: {
+          image: nextImage,
+          paletteSrc: nextPaletteSrc || ''
+        }
+      }
+    },
+
     /* ─────────────────────────────────────────────────────────────
        Poll Sonos every 2 s, but tolerate short TRANSITIONING gaps
        before we say “nothing is playing”.
@@ -40,6 +122,7 @@ export default {
       let   lastActive   = 0;
       let   lastPlayer   = this.player;
       let   cachedSonosIP = '';           // ← NEW
+      let   lastMetadataTrackKey = '';
 
       const checkState = async () => {
         try {
@@ -132,12 +215,17 @@ export default {
                 ? `http://localhost:5005/album-art?url=${encodeURIComponent(image)}`
                 : image;
 
+            const trackTitle = trackState.title || ''
+            const trackArtist = trackState.artist || ''
+            const trackId = this.extractSpotifyTrackId(trackState.uri || '')
+
             /* Update reactive data */
             const trackKey =
+              trackId ||
               trackState.uri ||
               [
-                trackState.title,
-                trackState.artist,
+                trackTitle,
+                trackArtist,
                 trackState.absoluteAlbumArtUri,
                 trackState.albumArtUri
               ]
@@ -146,11 +234,18 @@ export default {
 
             this.player = {
               playing: true,
-              trackTitle: trackState.title,
-              trackArtists: [trackState.artist],
+              trackTitle,
+              trackArtists: trackArtist ? [trackArtist] : [],
               trackKey,
               trackAlbum: { image, paletteSrc }
             };
+
+            if (trackId && trackKey !== lastMetadataTrackKey) {
+              lastMetadataTrackKey = trackKey
+              this.enrichPlayerFromSpotify(trackId, trackKey)
+            } else if (!trackId) {
+              lastMetadataTrackKey = trackKey
+            }
 
             lastActive = Date.now();
             lastPlayer = this.player;
@@ -158,6 +253,7 @@ export default {
             /* 3 ─ No active zone; grace period avoids flicker */
             if (Date.now() - lastActive > GRACE_MS) {
               this.player.playing = false;   // show idle
+              lastMetadataTrackKey = ''
             } else {
               this.player = lastPlayer;      // keep showing last track
             }
