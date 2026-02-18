@@ -55,7 +55,10 @@ export default {
       if (!this.player.playing) return ''
 
       const trackKey = this.player.trackKey || ''
-      const paletteSrc = this.player.trackAlbum?.paletteSrc || ''
+      const paletteSrc =
+        this.player.trackAlbum && this.player.trackAlbum.paletteSrc
+          ? this.player.trackAlbum.paletteSrc
+          : ''
 
       return `${trackKey}::${paletteSrc}`
     }
@@ -200,7 +203,10 @@ export default {
     colorRefreshKey: {
       immediate: true,
       handler() {
-        const paletteSrc = this.player.trackAlbum?.paletteSrc
+        const paletteSrc =
+          this.player.trackAlbum && this.player.trackAlbum.paletteSrc
+            ? this.player.trackAlbum.paletteSrc
+            : ''
         if (this.player.playing && paletteSrc) {
           this.updateColors(paletteSrc)
         }
