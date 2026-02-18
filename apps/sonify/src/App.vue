@@ -253,9 +253,12 @@ export default {
                 : image
 
             const resolvedPaletteSrc =
-              cachedSpotifyMetadata && cachedSpotifyMetadata.albumImage
-                ? cachedSpotifyMetadata.albumImage
-                : paletteSrc
+              paletteSrc ||
+              (
+                cachedSpotifyMetadata && cachedSpotifyMetadata.albumImage
+                  ? cachedSpotifyMetadata.albumImage
+                  : ''
+              )
 
             this.player = {
               playing: true,
