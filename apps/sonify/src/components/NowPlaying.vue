@@ -42,7 +42,7 @@ export default {
     return {
       titleNeedsExtended: false,
       artistsNeedExtended: false,
-      useBoostMode: false,
+      boostMode: 'none',
       overflowCheckRaf: 0
     }
   },
@@ -103,7 +103,8 @@ export default {
 
       if (this.titleNeedsExtended) classes.push('now-playing--title-extended')
       if (this.artistsNeedExtended) classes.push('now-playing--artists-extended')
-      if (this.useBoostMode) classes.push('now-playing--boost')
+      if (this.boostMode === 'soft') classes.push('now-playing--boost-soft')
+      if (this.boostMode === 'strong') classes.push('now-playing--boost-strong')
 
       return classes
     },
@@ -220,7 +221,7 @@ export default {
       if (!this.player.playing) {
         this.titleNeedsExtended = false
         this.artistsNeedExtended = false
-        this.useBoostMode = false
+        this.boostMode = 'none'
         return
       }
 
@@ -259,11 +260,23 @@ export default {
       this.titleNeedsExtended = trackMetrics.hasOverflow
       this.artistsNeedExtended = artistsMetrics.hasOverflow
 
-      this.useBoostMode =
-        !this.titleNeedsExtended &&
-        !this.artistsNeedExtended &&
-        trackMetrics.lineCount <= 2 &&
-        artistsMetrics.lineCount <= 2
+      const canBoost = !this.titleNeedsExtended && !this.artistsNeedExtended
+      if (!canBoost) {
+        this.boostMode = 'none'
+        return
+      }
+
+      const trackLines = trackMetrics.lineCount
+      const artistsLines = artistsMetrics.lineCount
+      const totalLines = trackLines + artistsLines
+
+      if (trackLines <= 1 && artistsLines <= 1) {
+        this.boostMode = 'strong'
+      } else if (trackLines <= 2 && artistsLines <= 2 && totalLines <= 3) {
+        this.boostMode = 'soft'
+      } else {
+        this.boostMode = 'none'
+      }
     },
 
     updateColors(imageUrl) {
@@ -424,7 +437,7 @@ export default {
       if (!isPlaying) {
         this.titleNeedsExtended = false
         this.artistsNeedExtended = false
-        this.useBoostMode = false
+        this.boostMode = 'none'
       }
       this.scheduleOverflowCheck()
     }
