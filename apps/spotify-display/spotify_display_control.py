@@ -383,7 +383,6 @@ def main():
                     new_process = launch_chromium(
                         SONIFY_URL,
                         CHROMIUM_USER_DATA_SONIFY,
-                        scale_factor=0.8,
                         force_sanitize=sanitize_next_launch,
                     )
                     if new_process:

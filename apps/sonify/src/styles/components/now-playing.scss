@@ -5,6 +5,10 @@
  *
  */
  .now-playing {
+  --np-track-size: 86px;
+  --np-track-extra: 30px;
+  --np-artists-size: 82px;
+  --np-artists-extra: 20px;
   background-color: var(--colour-background-now-playing);
   color: var(--color-text-primary);
   display: flex;
@@ -29,7 +33,9 @@
   &__image {
     box-shadow: 1px 1px 16px -2px rgba(0, 0, 0, 0.3);
     height: auto;
+    max-height: calc(100vh - 4rem);
     max-width: 60vw;
+    object-fit: contain;
     width: 100%;
   }
 
@@ -42,18 +48,17 @@
   /* Truncate long track titles with ellipses once container is filled (3 lines) */
   &__track {
     font-weight: var(--font-weight-heading);
-    font-size: 86px;
-    // line-height: 1; /* Current line-height */
+    font-size: var(--np-track-size);
+    line-height: 1.02;
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 3;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-height: calc(86px * 3 + 30px); /* Increased max-height by 10px */
+    max-height: calc(var(--np-track-size) * 3 + var(--np-track-extra));
     word-wrap: break-word;
     overflow-wrap: anywhere;
-    // padding-top: 0;
-    margin-top: -20px;
+    margin-top: 0;
     padding-bottom: 1px; /* Additional bottom padding */
     box-sizing: border-box; /* Ensure padding is included in height */
   }
@@ -61,14 +66,14 @@
   /* Truncate long artist names with ellipses once container is filled (3 lines) */
   &__artists {
     opacity: 0.85;
-    font-size: 82px;
-    // line-height: 1; /* Increased line-height to prevent cutoff of descenders */
+    font-size: var(--np-artists-size);
+    line-height: 1.02;
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-height: calc(82px * 2 + 20px); /* Adjusted max-height based on new line-height */
+    max-height: calc(var(--np-artists-size) * 2 + var(--np-artists-extra));
     word-wrap: break-word;
     overflow-wrap: anywhere;
     padding-top: 1px; /* Additional top padding */
@@ -84,14 +89,14 @@
   &--title-extended {
     .now-playing__track {
       -webkit-line-clamp: 4;
-      max-height: calc(86px * 4 + 30px);
+      max-height: calc(var(--np-track-size) * 4 + var(--np-track-extra));
     }
   }
 
   &--artists-extended {
     .now-playing__artists {
       -webkit-line-clamp: 3;
-      max-height: calc(82px * 3 + 20px);
+      max-height: calc(var(--np-artists-size) * 3 + var(--np-artists-extra));
     }
   }
 
@@ -116,5 +121,40 @@
       text-align: left;
       min-width: 0;
     }
-  }  
+  }
+
+  @media only screen and (max-height: 500px) {
+    --np-track-size: 58px;
+    --np-track-extra: 22px;
+    --np-artists-size: 50px;
+    --np-artists-extra: 16px;
+    padding: 1rem 2rem;
+
+    &__cover,
+    &__details {
+      padding: 0.5rem 0.75rem;
+    }
+
+    &__image {
+      max-height: calc(100vh - 2rem);
+      max-width: 42vw;
+    }
+  }
+
+  @media only screen and (max-height: 430px) {
+    --np-track-size: 50px;
+    --np-track-extra: 16px;
+    --np-artists-size: 42px;
+    --np-artists-extra: 12px;
+    padding: 0.5rem 1rem;
+
+    &__cover {
+      width: 30%;
+      max-width: 340px;
+    }
+
+    &__details {
+      width: 70%;
+    }
+  }
 }

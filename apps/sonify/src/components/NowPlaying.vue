@@ -124,6 +124,25 @@ export default {
       })
     },
 
+    parseCssPxValue(value, fallback = 0) {
+      const parsed = parseFloat(value)
+      return Number.isFinite(parsed) ? parsed : fallback
+    },
+
+    getBaseMaxHeightPx(element, baseLineClamp, extraVarName, fallbackPx) {
+      if (!element) return fallbackPx
+
+      const computedStyles = window.getComputedStyle(element)
+      const fontSizePx = this.parseCssPxValue(computedStyles.fontSize, 0)
+      const extraPx = this.parseCssPxValue(
+        computedStyles.getPropertyValue(extraVarName),
+        0
+      )
+
+      if (!fontSizePx) return fallbackPx
+      return fontSizePx * baseLineClamp + extraPx
+    },
+
     measureOverflowAtBaseClamp(element, baseLineClamp, baseMaxHeightPx) {
       if (!element) return false
 
@@ -154,15 +173,28 @@ export default {
       const artistsElement = this.$refs.artistsText
       if (!trackElement || !artistsElement) return
 
+      const trackBaseMaxHeight = this.getBaseMaxHeightPx(
+        trackElement,
+        3,
+        '--np-track-extra',
+        288
+      )
+      const artistsBaseMaxHeight = this.getBaseMaxHeightPx(
+        artistsElement,
+        2,
+        '--np-artists-extra',
+        184
+      )
+
       this.titleNeedsExtended = this.measureOverflowAtBaseClamp(
         trackElement,
         3,
-        288
+        trackBaseMaxHeight
       )
       this.artistsNeedExtended = this.measureOverflowAtBaseClamp(
         artistsElement,
         2,
-        184
+        artistsBaseMaxHeight
       )
     },
 
