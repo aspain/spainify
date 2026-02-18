@@ -262,10 +262,8 @@ export default {
       this.useBoostMode =
         !this.titleNeedsExtended &&
         !this.artistsNeedExtended &&
-        (
-          (trackMetrics.lineCount <= 1 && artistsMetrics.lineCount <= 2) ||
-          (trackMetrics.lineCount <= 2 && artistsMetrics.lineCount <= 1)
-        )
+        trackMetrics.lineCount <= 2 &&
+        artistsMetrics.lineCount <= 2
     },
 
     updateColors(imageUrl) {
