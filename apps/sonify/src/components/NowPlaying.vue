@@ -42,6 +42,7 @@ export default {
     return {
       titleNeedsExtended: false,
       artistsNeedExtended: false,
+      useBoostMode: false,
       overflowCheckRaf: 0
     }
   },
@@ -102,6 +103,7 @@ export default {
 
       if (this.titleNeedsExtended) classes.push('now-playing--title-extended')
       if (this.artistsNeedExtended) classes.push('now-playing--artists-extended')
+      if (this.useBoostMode) classes.push('now-playing--boost')
 
       return classes
     },
@@ -129,8 +131,20 @@ export default {
       return Number.isFinite(parsed) ? parsed : fallback
     },
 
-    getBaseMaxHeightPx(element, baseLineClamp, extraVarName, fallbackPx) {
+    getBaseMaxHeightPx(
+      element,
+      baseLineClamp,
+      extraVarName,
+      baseSizeVarName,
+      fallbackPx
+    ) {
       if (!element) return fallbackPx
+
+      const prevFontSize = element.style.fontSize
+      const prevLineHeight = element.style.lineHeight
+
+      element.style.fontSize = `var(${baseSizeVarName})`
+      element.style.lineHeight = ''
 
       const computedStyles = window.getComputedStyle(element)
       const fontSizePx = this.parseCssPxValue(computedStyles.fontSize, 0)
@@ -143,33 +157,70 @@ export default {
         0
       )
 
+      element.style.fontSize = prevFontSize
+      element.style.lineHeight = prevLineHeight
+
       if (!lineHeightPx) return fallbackPx
       return lineHeightPx * baseLineClamp + extraPx
     },
 
-    measureOverflowAtBaseClamp(element, baseLineClamp, baseMaxHeightPx) {
-      if (!element) return false
+    measureTextMetricsAtBaseClamp(
+      element,
+      baseLineClamp,
+      baseMaxHeightPx,
+      baseSizeVarName
+    ) {
+      if (!element) {
+        return { hasOverflow: false, lineCount: 1 }
+      }
 
+      const prevFontSize = element.style.fontSize
+      const prevLineHeight = element.style.lineHeight
       const prevClamp = element.style.webkitLineClamp
       const prevMaxHeight = element.style.maxHeight
 
+      element.style.fontSize = `var(${baseSizeVarName})`
+      element.style.lineHeight = ''
       element.style.webkitLineClamp = String(baseLineClamp)
       element.style.maxHeight = `${baseMaxHeightPx}px`
 
-      const hasOverflow =
+      const hasOverflowAtBaseClamp =
         element.scrollHeight - element.clientHeight > 1 ||
         element.scrollWidth - element.clientWidth > 1
 
+      element.style.webkitLineClamp = 'unset'
+      element.style.maxHeight = 'none'
+
+      const computedStyles = window.getComputedStyle(element)
+      const lineHeightPx = this.parseCssPxValue(computedStyles.lineHeight, 0)
+      const paddingTopPx = this.parseCssPxValue(computedStyles.paddingTop, 0)
+      const paddingBottomPx = this.parseCssPxValue(computedStyles.paddingBottom, 0)
+
+      const contentHeight = Math.max(
+        0,
+        element.scrollHeight - paddingTopPx - paddingBottomPx
+      )
+      const lineCount =
+        lineHeightPx > 0
+          ? Math.max(1, Math.ceil(contentHeight / lineHeightPx))
+          : 1
+
+      element.style.fontSize = prevFontSize
+      element.style.lineHeight = prevLineHeight
       element.style.webkitLineClamp = prevClamp
       element.style.maxHeight = prevMaxHeight
 
-      return hasOverflow
+      return {
+        hasOverflow: hasOverflowAtBaseClamp,
+        lineCount
+      }
     },
 
     updateOverflowState() {
       if (!this.player.playing) {
         this.titleNeedsExtended = false
         this.artistsNeedExtended = false
+        this.useBoostMode = false
         return
       }
 
@@ -181,25 +232,40 @@ export default {
         trackElement,
         3,
         '--np-track-extra',
+        '--np-track-size-base',
         288
       )
       const artistsBaseMaxHeight = this.getBaseMaxHeightPx(
         artistsElement,
         2,
         '--np-artists-extra',
+        '--np-artists-size-base',
         184
       )
 
-      this.titleNeedsExtended = this.measureOverflowAtBaseClamp(
+      const trackMetrics = this.measureTextMetricsAtBaseClamp(
         trackElement,
         3,
-        trackBaseMaxHeight
+        trackBaseMaxHeight,
+        '--np-track-size-base'
       )
-      this.artistsNeedExtended = this.measureOverflowAtBaseClamp(
+      const artistsMetrics = this.measureTextMetricsAtBaseClamp(
         artistsElement,
         2,
-        artistsBaseMaxHeight
+        artistsBaseMaxHeight,
+        '--np-artists-size-base'
       )
+
+      this.titleNeedsExtended = trackMetrics.hasOverflow
+      this.artistsNeedExtended = artistsMetrics.hasOverflow
+
+      this.useBoostMode =
+        !this.titleNeedsExtended &&
+        !this.artistsNeedExtended &&
+        (
+          (trackMetrics.lineCount <= 1 && artistsMetrics.lineCount <= 2) ||
+          (trackMetrics.lineCount <= 2 && artistsMetrics.lineCount <= 1)
+        )
     },
 
     updateColors(imageUrl) {
@@ -360,6 +426,7 @@ export default {
       if (!isPlaying) {
         this.titleNeedsExtended = false
         this.artistsNeedExtended = false
+        this.useBoostMode = false
       }
       this.scheduleOverflowCheck()
     }
