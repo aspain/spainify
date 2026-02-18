@@ -6,13 +6,13 @@
  */
 .now-playing {
   --np-track-size-base: clamp(2.45rem, calc(11.4vh + 1.05vw), 5.375rem);
-  --np-track-size-boost: clamp(2.6rem, calc(12.4vh + 1.15vw), 5.6rem);
+  --np-track-size-boost: clamp(3.0625rem, calc(14.25vh + 1.3125vw), 6.71875rem);
   --np-track-size: var(--np-track-size-base);
   --np-track-line-height: 1.02;
   --np-track-extra: clamp(10px, 2vh, 30px);
 
   --np-artists-size-base: clamp(2.15rem, calc(9.8vh + 0.9vw), 5.125rem);
-  --np-artists-size-boost: clamp(2.3rem, calc(10.8vh + 1vw), 5.3rem);
+  --np-artists-size-boost: clamp(2.6875rem, calc(12.25vh + 1.125vw), 6.40625rem);
   --np-artists-size: var(--np-artists-size-base);
   --np-artists-line-height: 1.02;
   --np-artists-extra: clamp(8px, 1.6vh, 20px);
@@ -155,10 +155,10 @@
 
   @media only screen and (max-height: 360px) {
     --np-track-size-base: clamp(1.6rem, calc(6.8vh + 0.6vw), 2.4rem);
-    --np-track-size-boost: clamp(1.7rem, calc(7.4vh + 0.65vw), 2.6rem);
+    --np-track-size-boost: clamp(2rem, calc(8.5vh + 0.8vw), 3rem);
     --np-track-extra: 8px;
     --np-artists-size-base: clamp(1.35rem, calc(5.6vh + 0.45vw), 2rem);
-    --np-artists-size-boost: clamp(1.45rem, calc(6.1vh + 0.5vw), 2.15rem);
+    --np-artists-size-boost: clamp(1.7rem, calc(7vh + 0.625vw), 2.5rem);
     --np-artists-extra: 6px;
   }
 }
