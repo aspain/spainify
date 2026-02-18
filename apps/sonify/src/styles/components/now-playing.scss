@@ -5,11 +5,11 @@
  *
  */
 .now-playing {
-  --np-track-size: clamp(2.45rem, calc(11.4vh + 1.05vw), 5.375rem);
+  --np-track-size: clamp(2.6rem, calc(12.4vh + 1.15vw), 5.6rem);
   --np-track-line-height: 1.02;
   --np-track-extra: clamp(10px, 2vh, 30px);
 
-  --np-artists-size: clamp(2.15rem, calc(9.8vh + 0.9vw), 5.125rem);
+  --np-artists-size: clamp(2.3rem, calc(10.8vh + 1vw), 5.3rem);
   --np-artists-line-height: 1.02;
   --np-artists-extra: clamp(8px, 1.6vh, 20px);
   --np-title-artist-gap: clamp(1rem, 7.5vh, 2.75rem);
