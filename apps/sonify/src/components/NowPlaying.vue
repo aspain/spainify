@@ -66,9 +66,9 @@ export default {
         .then(palette => {
           const swatches = Object.values(palette).filter(Boolean)
           if (swatches.length > 0) {
-            const randomSwatch = swatches[Math.floor(Math.random() * swatches.length)]
-            const bgColor = randomSwatch.getHex()
-            const textColor = this.calculateTextColor(bgColor)
+            const selectedSwatch = this.pickBackgroundSwatch(swatches)
+            const bgColor = selectedSwatch.getHex()
+            const textColor = this.getBestTextColor(bgColor)
 
             document.documentElement.style.setProperty(
               '--color-text-primary',
@@ -83,14 +83,106 @@ export default {
         .catch(console.error)
     },
 
-    calculateTextColor(bgHex) {
-      const c = bgHex.replace('#', '')
-      const rgb = parseInt(c, 16)
-      const r = (rgb >> 16) & 0xff
-      const g = (rgb >> 8) & 0xff
-      const b = (rgb >> 0) & 0xff
-      const brightness = 0.299 * r + 0.587 * g + 0.114 * b
-      return brightness > 150 ? '#000' : '#fff'
+    pickBackgroundSwatch(swatches) {
+      if (!swatches.length) return null
+
+      const spiceChance = 0.1
+      if (Math.random() < spiceChance) {
+        return swatches[Math.floor(Math.random() * swatches.length)]
+      }
+
+      const weightedSwatches = swatches.map(swatch => ({
+        swatch,
+        weight: this.getSwatchWeight(swatch)
+      }))
+
+      const totalWeight = weightedSwatches.reduce(
+        (sum, item) => sum + item.weight,
+        0
+      )
+
+      if (totalWeight <= 0) {
+        return swatches[Math.floor(Math.random() * swatches.length)]
+      }
+
+      let roll = Math.random() * totalWeight
+      for (const item of weightedSwatches) {
+        roll -= item.weight
+        if (roll <= 0) {
+          return item.swatch
+        }
+      }
+
+      return weightedSwatches[weightedSwatches.length - 1].swatch
+    },
+
+    getSwatchWeight(swatch) {
+      const hsl = swatch.getHsl()
+      if (!Array.isArray(hsl) || hsl.length < 3) {
+        return 1
+      }
+
+      const saturation = hsl[1]
+      const lightness = hsl[2]
+
+      const saturationScore = 1 - Math.min(Math.abs(saturation - 0.55) / 0.55, 1)
+      const lightnessScore = 1 - Math.min(Math.abs(lightness - 0.4) / 0.4, 1)
+
+      let weight = 0.2 + saturationScore * 0.9 + lightnessScore * 0.9
+
+      if (saturation > 0.8 && lightness > 0.55) weight *= 0.35
+      if (lightness < 0.12) weight *= 0.5
+      if (lightness > 0.75) weight *= 0.5
+
+      return Math.max(weight, 0.05)
+    },
+
+    getBestTextColor(bgHex) {
+      const bgRgb = this.hexToRgb(bgHex)
+      if (!bgRgb) return '#fff'
+
+      const whiteContrast = this.getContrastRatio(bgRgb, { r: 255, g: 255, b: 255 })
+      const blackContrast = this.getContrastRatio(bgRgb, { r: 0, g: 0, b: 0 })
+
+      return blackContrast >= whiteContrast ? '#000' : '#fff'
+    },
+
+    hexToRgb(hex) {
+      const normalizedHex = hex.replace('#', '')
+      if (normalizedHex.length !== 6) return null
+
+      const parsed = parseInt(normalizedHex, 16)
+      if (Number.isNaN(parsed)) return null
+
+      return {
+        r: (parsed >> 16) & 0xff,
+        g: (parsed >> 8) & 0xff,
+        b: parsed & 0xff
+      }
+    },
+
+    getRelativeLuminance({ r, g, b }) {
+      const toLinear = channel => {
+        const srgb = channel / 255
+        return srgb <= 0.03928
+          ? srgb / 12.92
+          : Math.pow((srgb + 0.055) / 1.055, 2.4)
+      }
+
+      const red = toLinear(r)
+      const green = toLinear(g)
+      const blue = toLinear(b)
+
+      return 0.2126 * red + 0.7152 * green + 0.0722 * blue
+    },
+
+    getContrastRatio(rgbA, rgbB) {
+      const luminanceA = this.getRelativeLuminance(rgbA)
+      const luminanceB = this.getRelativeLuminance(rgbB)
+      const lighter = Math.max(luminanceA, luminanceB)
+      const darker = Math.min(luminanceA, luminanceB)
+
+      return (lighter + 0.05) / (darker + 0.05)
     }
   },
 
