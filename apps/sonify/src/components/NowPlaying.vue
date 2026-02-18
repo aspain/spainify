@@ -127,99 +127,23 @@ export default {
       })
     },
 
-    parseCssPxValue(value, fallback = 0) {
-      const parsed = parseFloat(value)
-      return Number.isFinite(parsed) ? parsed : fallback
+    getElementOverflow(element) {
+      if (!element) return false
+      const EPSILON_PX = 2
+      return (
+        element.scrollHeight - element.clientHeight > EPSILON_PX ||
+        element.scrollWidth - element.clientWidth > EPSILON_PX
+      )
     },
 
-    getBaseMaxHeightPx(
-      element,
-      baseLineClamp,
-      extraVarName,
-      baseSizeVarName,
-      fallbackPx
-    ) {
-      if (!element) return fallbackPx
-
-      const prevFontSize = element.style.fontSize
-      const prevLineHeight = element.style.lineHeight
-
-      element.style.fontSize = `var(${baseSizeVarName})`
-      element.style.lineHeight = ''
-
-      const computedStyles = window.getComputedStyle(element)
-      const fontSizePx = this.parseCssPxValue(computedStyles.fontSize, 0)
-      const lineHeightPx = this.parseCssPxValue(
-        computedStyles.lineHeight,
-        fontSizePx ? fontSizePx * 1.02 : 0
-      )
-      const extraPx = this.parseCssPxValue(
-        computedStyles.getPropertyValue(extraVarName),
-        0
-      )
-
-      element.style.fontSize = prevFontSize
-      element.style.lineHeight = prevLineHeight
-
-      if (!lineHeightPx) return fallbackPx
-      return lineHeightPx * baseLineClamp + extraPx
-    },
-
-    measureTextMetricsAtBaseClamp(
-      element,
-      baseLineClamp,
-      baseMaxHeightPx,
-      baseSizeVarName
-    ) {
-      if (!element) {
-        return { hasOverflow: false, lineCount: 1 }
-      }
-
-      const prevFontSize = element.style.fontSize
-      const prevLineHeight = element.style.lineHeight
-      const prevClamp = element.style.webkitLineClamp
-      const prevMaxHeight = element.style.maxHeight
-
-      element.style.fontSize = `var(${baseSizeVarName})`
-      element.style.lineHeight = ''
-      element.style.webkitLineClamp = String(baseLineClamp)
-      element.style.maxHeight = `${baseMaxHeightPx}px`
-
-      const hasOverflowAtBaseClamp =
-        element.scrollHeight - element.clientHeight > 1 ||
-        element.scrollWidth - element.clientWidth > 1
-
-      element.style.webkitLineClamp = 'unset'
-      element.style.maxHeight = 'none'
-
-      const computedStyles = window.getComputedStyle(element)
-      const lineHeightPx = this.parseCssPxValue(computedStyles.lineHeight, 0)
-      const paddingTopPx = this.parseCssPxValue(computedStyles.paddingTop, 0)
-      const paddingBottomPx = this.parseCssPxValue(computedStyles.paddingBottom, 0)
-
-      const contentHeight = Math.max(
-        0,
-        element.scrollHeight - paddingTopPx - paddingBottomPx
-      )
-      const lineEstimate = lineHeightPx > 0 ? contentHeight / lineHeightPx : 1
-      const lineCount =
-        lineHeightPx > 0
-          ? Math.max(1, Math.round(lineEstimate))
-          : 1
-
-      element.style.fontSize = prevFontSize
-      element.style.lineHeight = prevLineHeight
-      element.style.webkitLineClamp = prevClamp
-      element.style.maxHeight = prevMaxHeight
-
+    getNowPlayingOverflow() {
       return {
-        hasOverflow: hasOverflowAtBaseClamp,
-        lineCount,
-        lineEstimate
+        track: this.getElementOverflow(this.$refs.trackText),
+        artists: this.getElementOverflow(this.$refs.artistsText)
       }
     },
 
-    updateOverflowState() {
+    async updateOverflowState() {
       if (!this.player.playing) {
         this.titleNeedsExtended = false
         this.artistsNeedExtended = false
@@ -231,54 +155,37 @@ export default {
       const artistsElement = this.$refs.artistsText
       if (!trackElement || !artistsElement) return
 
-      const trackBaseMaxHeight = this.getBaseMaxHeightPx(
-        trackElement,
-        3,
-        '--np-track-extra',
-        '--np-track-size-base',
-        288
-      )
-      const artistsBaseMaxHeight = this.getBaseMaxHeightPx(
-        artistsElement,
-        2,
-        '--np-artists-extra',
-        '--np-artists-size-base',
-        184
-      )
+      // Baseline state: 3-line title / 2-line artists with no boost.
+      this.titleNeedsExtended = false
+      this.artistsNeedExtended = false
+      this.boostMode = 'none'
+      await this.$nextTick()
 
-      const trackMetrics = this.measureTextMetricsAtBaseClamp(
-        trackElement,
-        3,
-        trackBaseMaxHeight,
-        '--np-track-size-base'
-      )
-      const artistsMetrics = this.measureTextMetricsAtBaseClamp(
-        artistsElement,
-        2,
-        artistsBaseMaxHeight,
-        '--np-artists-size-base'
-      )
+      const baseOverflow = this.getNowPlayingOverflow()
+      this.titleNeedsExtended = baseOverflow.track
+      this.artistsNeedExtended = baseOverflow.artists
 
-      this.titleNeedsExtended = trackMetrics.hasOverflow
-      this.artistsNeedExtended = artistsMetrics.hasOverflow
-
-      const canBoost = !this.titleNeedsExtended && !this.artistsNeedExtended
-      if (!canBoost) {
+      if (this.titleNeedsExtended || this.artistsNeedExtended) {
         this.boostMode = 'none'
         return
       }
 
-      const trackLines = trackMetrics.lineEstimate || trackMetrics.lineCount
-      const artistsLines = artistsMetrics.lineEstimate || artistsMetrics.lineCount
-      const totalLines = trackLines + artistsLines
-
-      if (trackLines <= 1.45 && artistsLines <= 1.45) {
-        this.boostMode = 'strong'
-      } else if (trackLines <= 2.45 && artistsLines <= 2.45 && totalLines <= 3.6) {
-        this.boostMode = 'soft'
-      } else {
-        this.boostMode = 'none'
+      // Try strong boost first, then fall back to soft, then none.
+      this.boostMode = 'strong'
+      await this.$nextTick()
+      const strongOverflow = this.getNowPlayingOverflow()
+      if (!strongOverflow.track && !strongOverflow.artists) {
+        return
       }
+
+      this.boostMode = 'soft'
+      await this.$nextTick()
+      const softOverflow = this.getNowPlayingOverflow()
+      if (!softOverflow.track && !softOverflow.artists) {
+        return
+      }
+
+      this.boostMode = 'none'
     },
 
     updateColors(imageUrl) {
