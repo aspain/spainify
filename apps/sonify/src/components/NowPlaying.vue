@@ -129,8 +129,16 @@ export default {
 
     getElementOverflow(element) {
       if (!element) return false
-      const EPSILON_PX = 2
-      return element.scrollHeight - element.clientHeight > EPSILON_PX
+      const overflowY = element.scrollHeight - element.clientHeight
+      if (overflowY <= 2) return false
+
+      const lineHeight = parseFloat(window.getComputedStyle(element).lineHeight)
+      if (Number.isFinite(lineHeight) && lineHeight > 0) {
+        // Ignore sub-line-height jitter from Chromium layout rounding.
+        if (overflowY < lineHeight * 0.6) return false
+      }
+
+      return true
     },
 
     getNowPlayingOverflow() {
