@@ -201,9 +201,10 @@ export default {
         0,
         element.scrollHeight - paddingTopPx - paddingBottomPx
       )
+      const lineEstimate = lineHeightPx > 0 ? contentHeight / lineHeightPx : 1
       const lineCount =
         lineHeightPx > 0
-          ? Math.max(1, Math.ceil(contentHeight / lineHeightPx))
+          ? Math.max(1, Math.round(lineEstimate))
           : 1
 
       element.style.fontSize = prevFontSize
@@ -213,7 +214,8 @@ export default {
 
       return {
         hasOverflow: hasOverflowAtBaseClamp,
-        lineCount
+        lineCount,
+        lineEstimate
       }
     },
 
@@ -266,13 +268,13 @@ export default {
         return
       }
 
-      const trackLines = trackMetrics.lineCount
-      const artistsLines = artistsMetrics.lineCount
+      const trackLines = trackMetrics.lineEstimate || trackMetrics.lineCount
+      const artistsLines = artistsMetrics.lineEstimate || artistsMetrics.lineCount
       const totalLines = trackLines + artistsLines
 
-      if (trackLines <= 1 && artistsLines <= 1) {
+      if (trackLines <= 1.45 && artistsLines <= 1.45) {
         this.boostMode = 'strong'
-      } else if (trackLines <= 2 && artistsLines <= 2 && totalLines <= 3) {
+      } else if (trackLines <= 2.45 && artistsLines <= 2.45 && totalLines <= 3.6) {
         this.boostMode = 'soft'
       } else {
         this.boostMode = 'none'
