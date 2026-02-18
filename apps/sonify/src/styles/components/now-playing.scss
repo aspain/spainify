@@ -10,6 +10,8 @@
   display: flex;
   flex-flow: column nowrap;
   height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
   padding: var(--spacing-l);
   width: 100%;
 
@@ -33,6 +35,8 @@
 
   &__details {
     text-align: center;
+    min-width: 0;
+    overflow: hidden;
   }
 
   /* Truncate long track titles with ellipses once container is filled (3 lines) */
@@ -110,6 +114,7 @@
     &__details {
       width: 67%;
       text-align: left;
+      min-width: 0;
     }
   }  
 }
