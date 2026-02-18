@@ -5,17 +5,17 @@
  *
  */
 .now-playing {
-  --np-track-size: clamp(2rem, calc(8vh + 0.8vw), 5.375rem);
+  --np-track-size: clamp(2.35rem, calc(10.6vh + 0.95vw), 5.375rem);
   --np-track-line-height: 1.02;
-  --np-track-extra: clamp(10px, 1.8vh, 30px);
+  --np-track-extra: clamp(10px, 2vh, 30px);
 
-  --np-artists-size: clamp(1.9rem, calc(7.6vh + 0.7vw), 5.125rem);
+  --np-artists-size: clamp(2.05rem, calc(8.9vh + 0.8vw), 5.125rem);
   --np-artists-line-height: 1.02;
-  --np-artists-extra: clamp(8px, 1.4vh, 20px);
+  --np-artists-extra: clamp(8px, 1.6vh, 20px);
 
-  --np-shell-pad-y: clamp(0.5rem, 1.8vh, 2rem);
-  --np-shell-pad-x: clamp(0.75rem, 2.4vw, 4rem);
-  --np-panel-pad: clamp(0.4rem, 0.9vw, 1rem);
+  --np-shell-pad-y: clamp(0.4rem, 1.2vh, 1.5rem);
+  --np-shell-pad-x: clamp(0.6rem, 1.8vw, 3rem);
+  --np-panel-pad: clamp(0.25rem, 0.6vw, 0.8rem);
 
   background-color: var(--colour-background-now-playing);
   color: var(--color-text-primary);
