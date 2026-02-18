@@ -134,13 +134,17 @@ export default {
 
       const computedStyles = window.getComputedStyle(element)
       const fontSizePx = this.parseCssPxValue(computedStyles.fontSize, 0)
+      const lineHeightPx = this.parseCssPxValue(
+        computedStyles.lineHeight,
+        fontSizePx ? fontSizePx * 1.02 : 0
+      )
       const extraPx = this.parseCssPxValue(
         computedStyles.getPropertyValue(extraVarName),
         0
       )
 
-      if (!fontSizePx) return fallbackPx
-      return fontSizePx * baseLineClamp + extraPx
+      if (!lineHeightPx) return fallbackPx
+      return lineHeightPx * baseLineClamp + extraPx
     },
 
     measureOverflowAtBaseClamp(element, baseLineClamp, baseMaxHeightPx) {
