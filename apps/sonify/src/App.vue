@@ -218,6 +218,9 @@ export default {
             const trackTitle = trackState.title || ''
             const trackArtist = trackState.artist || ''
             const trackId = this.extractSpotifyTrackId(trackState.uri || '')
+            const cachedSpotifyMetadata = trackId
+              ? this.spotifyTrackMetaCache[trackId]
+              : null
 
             /* Update reactive data */
             const trackKey =
@@ -232,15 +235,40 @@ export default {
                 .filter(Boolean)
                 .join('::')
 
+            const resolvedTitle =
+              cachedSpotifyMetadata && cachedSpotifyMetadata.title
+                ? cachedSpotifyMetadata.title
+                : trackTitle
+
+            const resolvedArtists =
+              cachedSpotifyMetadata &&
+              Array.isArray(cachedSpotifyMetadata.artists) &&
+              cachedSpotifyMetadata.artists.length > 0
+                ? cachedSpotifyMetadata.artists
+                : (trackArtist ? [trackArtist] : [])
+
+            const resolvedImage =
+              cachedSpotifyMetadata && cachedSpotifyMetadata.albumImage
+                ? cachedSpotifyMetadata.albumImage
+                : image
+
+            const resolvedPaletteSrc =
+              cachedSpotifyMetadata && cachedSpotifyMetadata.albumImage
+                ? cachedSpotifyMetadata.albumImage
+                : paletteSrc
+
             this.player = {
               playing: true,
-              trackTitle,
-              trackArtists: trackArtist ? [trackArtist] : [],
+              trackTitle: resolvedTitle,
+              trackArtists: resolvedArtists,
               trackKey,
-              trackAlbum: { image, paletteSrc }
+              trackAlbum: {
+                image: resolvedImage,
+                paletteSrc: resolvedPaletteSrc
+              }
             };
 
-            if (trackId && trackKey !== lastMetadataTrackKey) {
+            if (trackId && !cachedSpotifyMetadata && trackKey !== lastMetadataTrackKey) {
               lastMetadataTrackKey = trackKey
               this.enrichPlayerFromSpotify(trackId, trackKey)
             } else if (!trackId) {
