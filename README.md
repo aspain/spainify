@@ -1,5 +1,5 @@
 # Overview
-A Raspberry Pi home media hub for Sonos control, Spotify now-playing display, local weather at a glance, and more.
+A Raspberry Pi home media hub for Spotify/Sonos now-playing display, Sonos controls, local weather at a glance, and more.
 
 **Now-playing example:**
 ![now playing](assets/images/now_playing.png)
