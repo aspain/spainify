@@ -116,24 +116,39 @@ sanitize_room_default() {
 load_available_sonos_rooms() {
   local sonos_base="$1"
   local tmp_json
+  local room
+  local attempt
+  local -A seen_rooms=()
 
   if ! command -v curl >/dev/null 2>&1; then
     return 1
   fi
 
-  tmp_json="$(mktemp)"
-  if ! curl -fsS --max-time 3 "$sonos_base/zones" >"$tmp_json" 2>/dev/null; then
-    rm -f "$tmp_json"
-    return 1
-  fi
-
-  while IFS= read -r room; do
-    if [[ -n "$room" ]]; then
-      SONOS_ROOMS+=("$room")
+  # Poll multiple snapshots because Sonos discovery can be incomplete
+  # right after the local API starts.
+  for attempt in 1 2 3 4 5 6; do
+    tmp_json="$(mktemp)"
+    if curl -fsS --max-time 3 "$sonos_base/zones" >"$tmp_json" 2>/dev/null; then
+      while IFS= read -r room; do
+        if [[ -n "$room" ]]; then
+          seen_rooms["$room"]=1
+        fi
+      done < <(spainify_parse_rooms_from_zones_json "$tmp_json" 2>/dev/null || true)
     fi
-  done < <(spainify_parse_rooms_from_zones_json "$tmp_json" 2>/dev/null || true)
+    rm -f "$tmp_json"
 
-  rm -f "$tmp_json"
+    # If we already have rooms, keep polling briefly to catch late joiners.
+    if [[ "$attempt" != "6" ]]; then
+      sleep 1
+    fi
+  done
+
+  SONOS_ROOMS=()
+  for room in "${!seen_rooms[@]}"; do
+    SONOS_ROOMS+=("$room")
+  done
+  set_sonos_rooms_unique_sorted
+
   (( ${#SONOS_ROOMS[@]} > 0 ))
 }
 
