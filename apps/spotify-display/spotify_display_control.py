@@ -41,6 +41,22 @@ DEFAULT_CURSOR_IDLE_SECONDS = 0.1
 ENABLE_WEATHER_DASHBOARD = _env_bool("ENABLE_WEATHER_DASHBOARD", True)
 
 
+def resolve_chromium_command():
+    configured = os.getenv("CHROMIUM_BIN", "").strip()
+    candidates = []
+    if configured:
+        candidates.append(configured)
+    candidates.extend(["chromium-browser", "chromium"])
+
+    for candidate in candidates:
+        if shutil.which(candidate):
+            return candidate
+    return None
+
+
+CHROMIUM_COMMAND = resolve_chromium_command()
+
+
 def _patch_json(path):
     try:
         with open(path, "r+", encoding="utf-8") as f:
@@ -323,9 +339,18 @@ def launch_chromium(
     force_sanitize=False,
 ):
     """Launch Chromium in full-screen mode with custom options."""
+    if not CHROMIUM_COMMAND:
+        if not getattr(launch_chromium, "_warned_missing", False):
+            logging.error(
+                "No Chromium executable found. Install `chromium` (or `chromium-browser`) "
+                "or set CHROMIUM_BIN to the browser binary path."
+            )
+            launch_chromium._warned_missing = True
+        return None
+
     sanitize_chromium_profile(user_data_dir, force_sanitize=force_sanitize)
     args = [
-        "chromium-browser",
+        CHROMIUM_COMMAND,
         "--start-fullscreen",
         "--no-first-run",
         "--disable-translate",

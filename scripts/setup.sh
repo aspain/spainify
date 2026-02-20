@@ -69,6 +69,14 @@ apt_available() {
   command -v apt-get >/dev/null 2>&1 && command -v dpkg-query >/dev/null 2>&1
 }
 
+apt_package_exists() {
+  local pkg="$1"
+  if ! command -v apt-cache >/dev/null 2>&1; then
+    return 1
+  fi
+  apt-cache show "$pkg" >/dev/null 2>&1
+}
+
 apt_package_installed() {
   local pkg="$1"
   dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q "install ok installed"
@@ -171,6 +179,17 @@ ensure_setup_prerequisites() {
   fi
 
   if [[ "$ENABLE_SPOTIFY_DISPLAY" == "1" ]]; then
+    if ! command -v chromium-browser >/dev/null 2>&1 && ! command -v chromium >/dev/null 2>&1; then
+      ensure_apt_index || required_ok="0"
+      if apt_package_exists chromium-browser; then
+        install_apt_packages required chromium-browser || required_ok="0"
+      elif apt_package_exists chromium; then
+        install_apt_packages required chromium || required_ok="0"
+      else
+        echo "Missing Chromium browser package (neither chromium-browser nor chromium found in apt repositories)."
+        required_ok="0"
+      fi
+    fi
     ensure_python_venv_available || required_ok="0"
   fi
 
