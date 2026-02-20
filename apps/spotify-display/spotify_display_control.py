@@ -336,28 +336,42 @@ def _run_command(args, env_updates=None):
 
 def _apply_display_power_fallback(target_on):
     target_text = "on" if target_on else "off"
+    wayland_candidates = _wayland_env_candidates()
 
-    if shutil.which("wlr-randr"):
-        for env_updates in _wayland_env_candidates():
-            cmd = [
-                "wlr-randr",
-                "--output",
-                DISPLAY_OUTPUT_NAME,
-                "--on" if target_on else "--off",
-            ]
-            try:
-                result = _run_command(cmd, env_updates=env_updates)
-                if result.returncode == 0:
-                    logging.info(
-                        "Display fallback via wlr-randr %s succeeded (%s).",
-                        target_text,
-                        env_updates.get("WAYLAND_DISPLAY", "unknown"),
-                    )
-                    return True
-            except Exception:
-                logging.exception("Display fallback via wlr-randr failed.")
+    if shutil.which("wlr-randr") and wayland_candidates:
+        for env_updates in wayland_candidates:
+            probe_result = _run_command(["wlr-randr"], env_updates=env_updates)
+            candidate_outputs = [DISPLAY_OUTPUT_NAME]
+            if probe_result.returncode == 0:
+                for line in (probe_result.stdout or "").splitlines():
+                    if not line or line.startswith(" "):
+                        continue
+                    name = line.split(" ", 1)[0].strip('"')
+                    if name and name not in candidate_outputs:
+                        candidate_outputs.append(name)
 
-    if shutil.which("xset"):
+            for output_name in candidate_outputs:
+                cmd = [
+                    "wlr-randr",
+                    "--output",
+                    output_name,
+                    "--on" if target_on else "--off",
+                ]
+                try:
+                    result = _run_command(cmd, env_updates=env_updates)
+                    if result.returncode == 0:
+                        logging.info(
+                            "Display fallback via wlr-randr %s succeeded (%s, output=%s).",
+                            target_text,
+                            env_updates.get("WAYLAND_DISPLAY", "unknown"),
+                            output_name,
+                        )
+                        return True
+                except Exception:
+                    logging.exception("Display fallback via wlr-randr failed.")
+
+    # Only use xset when Wayland control is unavailable.
+    if not wayland_candidates and shutil.which("xset"):
         display = os.getenv("DISPLAY", ":0")
         cmd = ["xset", "-display", display, "dpms", "force", target_text]
         try:
