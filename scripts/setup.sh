@@ -954,6 +954,7 @@ ADD_CURRENT_PREFERRED_ROOM="$(read_existing_or_default "$add_current_env_file" "
 ADD_CURRENT_DEDUPE_WINDOW="$(read_existing_or_default "$add_current_env_file" "DE_DUPE_WINDOW" "750")"
 
 if [[ "$ENABLE_ADD_CURRENT" == "1" ]]; then
+  token_captured_automatically="0"
   echo
   echo "Configure add-current service values:"
   print_spotify_setup_help
@@ -988,6 +989,7 @@ if [[ "$ENABLE_ADD_CURRENT" == "1" ]]; then
         fetched_refresh_token="$(wait_for_spotify_refresh_token 300 || true)"
         if [[ -n "$fetched_refresh_token" ]]; then
           ADD_CURRENT_REFRESH_TOKEN="$fetched_refresh_token"
+          token_captured_automatically="1"
           echo "Refresh token captured automatically."
         else
           echo "Timed out waiting for Spotify callback. You can paste token manually."
@@ -996,7 +998,11 @@ if [[ "$ENABLE_ADD_CURRENT" == "1" ]]; then
       cleanup_setup_helpers
     fi
   fi
-  ADD_CURRENT_REFRESH_TOKEN="$(prompt_text "Spotify refresh token" "$ADD_CURRENT_REFRESH_TOKEN")"
+  if [[ "$token_captured_automatically" != "1" ]]; then
+    ADD_CURRENT_REFRESH_TOKEN="$(prompt_text "Spotify refresh token" "$ADD_CURRENT_REFRESH_TOKEN")"
+  else
+    echo "Spotify refresh token: [captured automatically]"
+  fi
   add_current_playlist_input="$(prompt_text "Spotify playlist link or ID (example: https://open.spotify.com/playlist/3kQGrwA1LHaM2tt4qqfC2Y)" "$ADD_CURRENT_PLAYLIST_ID")"
   ADD_CURRENT_PLAYLIST_ID="$(normalize_spotify_playlist_id "$add_current_playlist_input")"
 
