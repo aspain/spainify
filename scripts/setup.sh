@@ -323,21 +323,32 @@ boot_temp_sonos_http_api() {
 prompt_sonos_room() {
   local default_room="$1"
   local sonos_base="$2"
+  local discovered_any=0
+  local -a api_rooms=()
+  local -a direct_rooms=()
   SONOS_ROOMS=()
 
   if load_available_sonos_rooms "$sonos_base"; then
-    if choose_discovered_sonos_room "$default_room"; then
-      return
-    fi
+    api_rooms=("${SONOS_ROOMS[@]}")
+    discovered_any=1
   elif boot_temp_sonos_http_api "$sonos_base" && load_available_sonos_rooms "$sonos_base"; then
-    if choose_discovered_sonos_room "$default_room"; then
-      return
-    fi
-  elif load_available_sonos_rooms_direct; then
-    if choose_discovered_sonos_room "$default_room"; then
-      return
-    fi
-  else
+    api_rooms=("${SONOS_ROOMS[@]}")
+    discovered_any=1
+  fi
+
+  if load_available_sonos_rooms_direct; then
+    direct_rooms=("${SONOS_ROOMS[@]}")
+    discovered_any=1
+  fi
+
+  SONOS_ROOMS=("${api_rooms[@]}" "${direct_rooms[@]}")
+  set_sonos_rooms_unique_sorted
+
+  if (( discovered_any == 1 )) && choose_discovered_sonos_room "$default_room"; then
+    return
+  fi
+
+  if (( discovered_any == 0 )); then
     echo >&2
     echo "Could not auto-discover Sonos rooms through local API or direct network scan. Enter room name manually." >&2
   fi
@@ -363,6 +374,7 @@ print_spotify_setup_help() {
   echo "Spotify app setup (for add-current):"
   echo "  Dashboard: https://developer.spotify.com/dashboard"
   echo "  Add these Redirect URI values in your Spotify app settings:"
+  echo "    - http://127.0.0.1:8888/callback"
   echo "    - http://localhost:8888/callback"
   if [[ -n "$host_local" ]]; then
     echo "    - http://$host_local:8888/callback"
@@ -370,7 +382,33 @@ print_spotify_setup_help() {
   if [[ -n "$host_ip" ]]; then
     echo "    - http://$host_ip:8888/callback"
   fi
+  echo "  Note: Spotify may label local http:// redirect URIs as 'not secure'."
+  echo "        That warning is expected for local development callbacks."
   echo "  Save settings, then paste Client ID/secret below."
+}
+
+set_sonos_rooms_unique_sorted() {
+  local room
+  local -a unique=()
+  local -A seen=()
+
+  for room in "${SONOS_ROOMS[@]}"; do
+    room="$(spainify_trim "$room")"
+    if [[ -z "$room" ]]; then
+      continue
+    fi
+    if [[ -z "${seen[$room]+x}" ]]; then
+      seen["$room"]="1"
+      unique+=("$room")
+    fi
+  done
+
+  if (( ${#unique[@]} == 0 )); then
+    SONOS_ROOMS=()
+    return
+  fi
+
+  mapfile -t SONOS_ROOMS < <(printf '%s\n' "${unique[@]}" | sort)
 }
 
 write_device_config() {
