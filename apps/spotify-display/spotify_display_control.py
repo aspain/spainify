@@ -399,6 +399,18 @@ def set_display_power(target_on):
     if fallback_used:
         time.sleep(0.3)
         current_state = get_display_power_state(default=target_on)
+        if current_state != target_on:
+            # Some stacks keep vcgencmd pinned to ON even when Wayland output control works.
+            # If fallback command succeeded but state probing is inconclusive, avoid thrashing
+            # by trusting the successful fallback transition.
+            wayland_state = get_wayland_display_power_state()
+            if wayland_state is None:
+                logging.info(
+                    "Fallback command succeeded but display probe is inconclusive; "
+                    "assuming display is now %s.",
+                    target_name,
+                )
+                current_state = target_on
 
     if current_state != target_on and fallback_used:
         logging.warning(
