@@ -6,6 +6,7 @@ DEVICE_CONFIG_FILE="$ROOT_DIR/.spainify-device.env"
 DISCOVERY_SONOS_API_PID=""
 SPOTIFY_AUTH_HELPER_PID=""
 SPOTIFY_AUTH_TOKEN_FILE=""
+APT_UPDATED="0"
 
 # shellcheck disable=SC1091
 source "$ROOT_DIR/scripts/lib/device_config.sh"
@@ -27,6 +28,133 @@ cleanup_setup_helpers() {
   SPOTIFY_AUTH_TOKEN_FILE=""
 }
 trap cleanup_setup_helpers EXIT INT TERM
+
+run_with_elevated_privileges() {
+  if [[ "$(id -u)" -eq 0 ]]; then
+    "$@"
+    return
+  fi
+  if command -v sudo >/dev/null 2>&1; then
+    sudo "$@"
+    return
+  fi
+  return 1
+}
+
+apt_available() {
+  command -v apt-get >/dev/null 2>&1 && command -v dpkg-query >/dev/null 2>&1
+}
+
+apt_package_installed() {
+  local pkg="$1"
+  dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q "install ok installed"
+}
+
+ensure_apt_index() {
+  if [[ "$APT_UPDATED" == "1" ]]; then
+    return 0
+  fi
+  echo "Refreshing apt package index..."
+  run_with_elevated_privileges apt-get update
+  APT_UPDATED="1"
+}
+
+install_apt_packages() {
+  local mode="$1"
+  shift
+  local pkg
+  local -a missing=()
+
+  if ! apt_available; then
+    if [[ "$mode" == "required" ]]; then
+      echo "apt-get is unavailable; cannot auto-install required packages."
+      return 1
+    fi
+    return 0
+  fi
+
+  for pkg in "$@"; do
+    if [[ -z "$pkg" ]]; then
+      continue
+    fi
+    if ! apt_package_installed "$pkg"; then
+      missing+=("$pkg")
+    fi
+  done
+
+  if (( ${#missing[@]} == 0 )); then
+    return 0
+  fi
+
+  ensure_apt_index || return 1
+
+  if [[ "$mode" == "required" ]]; then
+    echo "Installing required packages: ${missing[*]}"
+    run_with_elevated_privileges apt-get install -y "${missing[@]}"
+    return
+  fi
+
+  for pkg in "${missing[@]}"; do
+    echo "Installing optional package: $pkg"
+    if ! run_with_elevated_privileges apt-get install -y "$pkg"; then
+      echo "Warning: failed to install optional package '$pkg'. Continuing."
+    fi
+  done
+}
+
+ensure_command_available() {
+  local cmd="$1"
+  if command -v "$cmd" >/dev/null 2>&1; then
+    return 0
+  fi
+  echo "Missing required command: $cmd"
+  return 1
+}
+
+ensure_python_venv_available() {
+  if python3 -m venv --help >/dev/null 2>&1; then
+    return 0
+  fi
+  echo "Missing Python venv support (python3-venv)."
+  return 1
+}
+
+ensure_setup_prerequisites() {
+  local need_node="0"
+  local required_ok="1"
+  local -a required_packages=(curl python3)
+  local -a optional_packages=(openssh-server realvnc-vnc-server wayvnc)
+
+  if [[ "$ENABLE_ADD_CURRENT" == "1" || "$ENABLE_SONOS_HTTP_API" == "1" || "$ENABLE_SONIFY_SERVE" == "1" || "$ENABLE_WEATHER_DASHBOARD" == "1" ]]; then
+    need_node="1"
+    required_packages+=(nodejs npm)
+  fi
+
+  if [[ "$ENABLE_SPOTIFY_DISPLAY" == "1" ]]; then
+    required_packages+=(python3-venv)
+    optional_packages+=(unclutter wlr-randr)
+  fi
+
+  install_apt_packages required "${required_packages[@]}" || required_ok="0"
+  install_apt_packages optional "${optional_packages[@]}" || true
+
+  ensure_command_available curl || required_ok="0"
+  ensure_command_available python3 || required_ok="0"
+
+  if [[ "$need_node" == "1" ]]; then
+    ensure_command_available node || required_ok="0"
+    ensure_command_available npm || required_ok="0"
+  fi
+
+  if [[ "$ENABLE_SPOTIFY_DISPLAY" == "1" ]]; then
+    ensure_python_venv_available || required_ok="0"
+  fi
+
+  if [[ "$required_ok" != "1" ]]; then
+    echo "One or more required packages are missing. Fix the errors above and re-run ./setup.sh."
+    return 1
+  fi
+}
 
 prompt_yes_no() {
   local question="$1"
@@ -679,6 +807,10 @@ if [[ -n "$dependency_notes" ]]; then
     [[ -n "$note" ]] && echo "  - $note"
   done <<< "$dependency_notes"
 fi
+
+echo
+echo "==> Checking system package prerequisites..."
+ensure_setup_prerequisites
 
 display_env_file="$ROOT_DIR/apps/spotify-display/.env"
 add_current_env_file="$ROOT_DIR/apps/add-current/.env"

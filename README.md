@@ -48,14 +48,15 @@ What `setup.sh` does:
 
 1. Prompts you for each service/app (`custom` mode by default)
 2. Applies dependency guardrails (for example, `spotify_display` requires `sonify-serve` + `sonos-http-api`)
-3. Attempts Sonos room discovery (numbered selection) when Sonos API is reachable; otherwise falls back to manual room entry
-4. Writes local config/env files for this Pi:
+3. Installs missing OS packages needed by your selected services (for example: `nodejs`, `npm`, `python3-venv`) and optional Pi utilities (`unclutter`, `wlr-randr`, SSH/VNC packages)
+4. Attempts Sonos room discovery (numbered selection) when Sonos API is reachable; otherwise falls back to manual room entry
+5. Writes local config/env files for this Pi:
    - `.spainify-device.env`
    - `apps/add-current/.env` (if enabled)
    - `apps/spotify-display/.env` (if enabled)
    - `apps/weather-dashboard/.env` (if enabled)
    - `apps/sonify/.env.local` (if enabled)
-5. Runs `./scripts/redeploy.sh` (unless you skip at the final prompt)
+6. Runs `./scripts/redeploy.sh` (unless you skip at the final prompt)
 
 Re-running `./setup.sh` is safe and is the intended way to change this device's enabled services later.
 
