@@ -44,6 +44,16 @@ cd ~/spainify
 ./setup.sh
 ```
 
+Single-command remote setup from your laptop (recommended for SSH users):
+
+```bash
+git clone https://github.com/aspain/spainify.git
+cd spainify
+./scripts/setup-remote.sh <pi-user>@<pi-ip> --fresh
+```
+
+This opens one SSH session with auth port-forwarding, runs full setup, and auto-opens Spotify login when ready.
+
 What `setup.sh` does:
 
 1. Prompts you for each service/app (`custom` mode by default)
