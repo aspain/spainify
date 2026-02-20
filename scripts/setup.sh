@@ -577,6 +577,7 @@ prompt_sonos_room() {
   local sonos_base="$2"
   local discovered_any=0
   local cached_any=0
+  local selected_room=""
   local -a api_rooms=()
   local -a direct_rooms=()
   local -a cached_rooms=()
@@ -607,8 +608,14 @@ prompt_sonos_room() {
     save_cached_sonos_rooms
   fi
 
-  if (( ${#SONOS_ROOMS[@]} > 0 )) && choose_discovered_sonos_room "$default_room"; then
-    return
+  if (( ${#SONOS_ROOMS[@]} > 0 )); then
+    selected_room="$(choose_discovered_sonos_room "$default_room" || true)"
+    selected_room="$(spainify_trim "$selected_room")"
+    if [[ -n "$selected_room" ]]; then
+      cleanup_setup_helpers
+      printf '%s' "$selected_room"
+      return
+    fi
   fi
 
   if (( discovered_any == 0 && cached_any == 1 )); then
@@ -619,7 +626,9 @@ prompt_sonos_room() {
     echo "Could not auto-discover Sonos rooms through local API or direct network scan. Enter room name manually." >&2
   fi
 
-  prompt_required_text "Enter Sonos room name" "$default_room"
+  selected_room="$(prompt_required_text "Enter Sonos room name" "$default_room")"
+  cleanup_setup_helpers
+  printf '%s' "$selected_room"
 }
 
 first_ipv4_address() {
