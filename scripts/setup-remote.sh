@@ -128,9 +128,7 @@ branch_q="$(printf '%q' "$BRANCH")"
 repo_q="$(printf '%q' "$REPO_URL")"
 fresh_q="$(printf '%q' "$FRESH")"
 path_q="$(printf '%q' "$REMOTE_PATH")"
-
-ssh -t -L "${FORWARD_PORT}:127.0.0.1:8888" "$REMOTE_TARGET" \
-  "BRANCH=$branch_q REPO_URL=$repo_q FRESH=$fresh_q REMOTE_PATH_OVERRIDE=$path_q bash -s" <<'EOF_REMOTE'
+remote_script=$(cat <<'EOF_REMOTE'
 set -euo pipefail
 
 REMOTE_PATH="${REMOTE_PATH_OVERRIDE:-$HOME/spainify}"
@@ -158,3 +156,9 @@ fi
 
 ./setup.sh
 EOF_REMOTE
+)
+
+remote_script_q="$(printf '%q' "$remote_script")"
+
+ssh -tt -q -o LogLevel=ERROR -L "${FORWARD_PORT}:127.0.0.1:8888" "$REMOTE_TARGET" \
+  "BRANCH=$branch_q REPO_URL=$repo_q FRESH=$fresh_q REMOTE_PATH_OVERRIDE=$path_q bash -lc $remote_script_q"
