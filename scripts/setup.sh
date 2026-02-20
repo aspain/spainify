@@ -162,6 +162,28 @@ MSEARCH = "\r\n".join([
 locations = set()
 rooms = set()
 
+def local_name(tag):
+    if "}" in tag:
+        return tag.rsplit("}", 1)[1]
+    return tag
+
+def parse_rooms(payload):
+    names = set()
+    root = ET.fromstring(payload)
+    for elem in root.iter():
+        lname = local_name(elem.tag)
+        if lname == "ZonePlayer":
+            for key, value in elem.attrib.items():
+                if local_name(key) == "ZoneName":
+                    zone = (value or "").strip()
+                    if zone:
+                        names.add(zone)
+        elif lname in ("roomName", "ZoneName"):
+            zone = (elem.text or "").strip()
+            if zone:
+                names.add(zone)
+    return names
+
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
 sock.settimeout(1.2)
 sock.sendto(MSEARCH, ("239.255.255.250", 1900))
@@ -185,14 +207,14 @@ for location in locations:
         host = parsed.hostname
         if not host:
             continue
-        topology_url = f"http://{host}:1400/status/topology"
-        with urllib.request.urlopen(topology_url, timeout=3) as response:
-            payload = response.read()
-        root = ET.fromstring(payload)
-        for zp in root.findall(".//ZonePlayer"):
-            zone_name = (zp.attrib.get("ZoneName") or "").strip()
-            if zone_name:
-                rooms.add(zone_name)
+        urls = [location, f"http://{host}:1400/status/topology"]
+        for url in urls:
+            try:
+                with urllib.request.urlopen(url, timeout=3) as response:
+                    payload = response.read()
+                rooms.update(parse_rooms(payload))
+            except (urllib.error.URLError, TimeoutError, ET.ParseError, ValueError):
+                continue
     except (urllib.error.URLError, TimeoutError, ET.ParseError, ValueError):
         continue
 
