@@ -13,22 +13,40 @@ APT_UPDATED="0"
 source "$ROOT_DIR/scripts/lib/device_config.sh"
 
 cleanup_setup_helpers() {
-  if [[ -n "$DISCOVERY_SONOS_API_PID" ]] && kill -0 "$DISCOVERY_SONOS_API_PID" >/dev/null 2>&1; then
-    kill "$DISCOVERY_SONOS_API_PID" >/dev/null 2>&1 || true
-    wait "$DISCOVERY_SONOS_API_PID" 2>/dev/null || true
-    DISCOVERY_SONOS_API_PID=""
-  fi
-  if [[ -n "$SPOTIFY_AUTH_HELPER_PID" ]] && kill -0 "$SPOTIFY_AUTH_HELPER_PID" >/dev/null 2>&1; then
-    kill "$SPOTIFY_AUTH_HELPER_PID" >/dev/null 2>&1 || true
-    wait "$SPOTIFY_AUTH_HELPER_PID" 2>/dev/null || true
-    SPOTIFY_AUTH_HELPER_PID=""
-  fi
+  terminate_helper_pid "$DISCOVERY_SONOS_API_PID"
+  DISCOVERY_SONOS_API_PID=""
+  terminate_helper_pid "$SPOTIFY_AUTH_HELPER_PID"
+  SPOTIFY_AUTH_HELPER_PID=""
   if [[ -n "$SPOTIFY_AUTH_TOKEN_FILE" && -f "$SPOTIFY_AUTH_TOKEN_FILE" ]]; then
     rm -f "$SPOTIFY_AUTH_TOKEN_FILE" || true
   fi
   SPOTIFY_AUTH_TOKEN_FILE=""
 }
 trap cleanup_setup_helpers EXIT INT TERM
+
+terminate_helper_pid() {
+  local pid="$1"
+  local i
+  if [[ -z "$pid" ]]; then
+    return 0
+  fi
+  if ! kill -0 "$pid" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  kill "$pid" >/dev/null 2>&1 || true
+  for ((i=0; i<30; i++)); do
+    if ! kill -0 "$pid" >/dev/null 2>&1; then
+      wait "$pid" 2>/dev/null || true
+      return 0
+    fi
+    sleep 0.1
+  done
+
+  # Last resort so setup cannot hang forever on cleanup.
+  kill -9 "$pid" >/dev/null 2>&1 || true
+  wait "$pid" 2>/dev/null || true
+}
 
 run_with_elevated_privileges() {
   if [[ "$(id -u)" -eq 0 ]]; then
