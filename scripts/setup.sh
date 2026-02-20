@@ -1028,16 +1028,6 @@ if [[ "$ENABLE_ADD_CURRENT" == "1" ]]; then
     ADD_CURRENT_DEDUPE_WINDOW="$(sanitize_dedupe_window_value "$ADD_CURRENT_DEDUPE_WINDOW" "750")"
   fi
 
-  configure_add_current_advanced="$(prompt_yes_no "Configure advanced add-current options?" "0")"
-  if [[ "$configure_add_current_advanced" == "1" ]]; then
-    ADD_CURRENT_SONOS_HTTP_BASE="$(prompt_required_text "Sonos HTTP base URL" "$ADD_CURRENT_SONOS_HTTP_BASE")"
-    ADD_CURRENT_PREFERRED_ROOM="$(prompt_text "Preferred Sonos room (optional)" "$ADD_CURRENT_PREFERRED_ROOM")"
-    if [[ "$dedupe_all_playlist" != "1" ]]; then
-      ADD_CURRENT_DEDUPE_WINDOW="$(prompt_text "De-dupe window size" "$ADD_CURRENT_DEDUPE_WINDOW")"
-      ADD_CURRENT_DEDUPE_WINDOW="$(sanitize_dedupe_window_value "$ADD_CURRENT_DEDUPE_WINDOW" "750")"
-    fi
-  fi
-
   if [[ -z "$ADD_CURRENT_CLIENT_ID" || -z "$ADD_CURRENT_CLIENT_SECRET" || -z "$ADD_CURRENT_REFRESH_TOKEN" ]]; then
     echo "Warning: add-current is enabled but Spotify credentials are incomplete."
     echo "         Metadata and playlist endpoints may return auth errors until values are set."
