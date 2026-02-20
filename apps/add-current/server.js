@@ -12,7 +12,7 @@ const {
   SPOTIFY_CLIENT_ID,
   SPOTIFY_CLIENT_SECRET,
   SPOTIFY_REFRESH_TOKEN,
-  SPOTIFY_PLAYLIST_ID,
+  SPOTIFY_PLAYLIST_ID: SPOTIFY_PLAYLIST_RAW,
   SONOS_HTTP_BASE = "http://127.0.0.1:5005",
   PREFERRED_ROOM = "",
   DE_DUPE_WINDOW = "250",
@@ -68,6 +68,22 @@ function extractSpotifyTrackId(uri) {
   if (m2) return m2[1];
   return null;
 }
+
+function normalizeSpotifyPlaylistId(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  const uriMatch = raw.match(/spotify:playlist:([A-Za-z0-9]+)/);
+  if (uriMatch) return uriMatch[1];
+
+  const urlMatch = raw.match(/open\.spotify\.com\/playlist\/([A-Za-z0-9]+)/);
+  if (urlMatch) return urlMatch[1];
+
+  if (/^[A-Za-z0-9]+$/.test(raw)) return raw;
+  return raw;
+}
+
+const SPOTIFY_PLAYLIST_ID = normalizeSpotifyPlaylistId(SPOTIFY_PLAYLIST_RAW);
 
 function isTvLikeUri(uri = "") {
   // Sonos TV inputs often look like x-sonos-htastream:… or have HDMI/SPDIF hints
@@ -270,28 +286,38 @@ const playlistCache = {
   ids: new Set(),
   snapshotId: "",
   total: 0,
-  windowSize: 0,
+  scopeKey: "",
   updatedAt: 0
 };
 let playlistCacheRefreshPromise = null;
 
 function getDedupeWindow() {
-  const n = Number(DE_DUPE_WINDOW || DEFAULT_DE_DUPE_WINDOW);
+  const raw = String(DE_DUPE_WINDOW || "").trim().toLowerCase();
+  if (["all", "full", "entire", "none", "0"].includes(raw)) {
+    return null; // null means scan entire playlist
+  }
+  const n = Number(raw || DEFAULT_DE_DUPE_WINDOW);
   if (!Number.isFinite(n) || n < 1) return DEFAULT_DE_DUPE_WINDOW;
   return Math.floor(n);
 }
 
+function dedupeScopeKey(windowSize) {
+  return windowSize == null ? "all" : `last:${windowSize}`;
+}
+
 function isPlaylistCacheUsable(windowSize) {
+  const scopeKey = dedupeScopeKey(windowSize);
   return (
     playlistCache.updatedAt > 0 &&
-    playlistCache.windowSize === windowSize &&
+    playlistCache.scopeKey === scopeKey &&
     (Date.now() - playlistCache.updatedAt) < PLAYLIST_CACHE_TTL_MS
   );
 }
 
 function markPlaylistCacheWithAddedTrack(trackId, windowSize) {
+  const scopeKey = dedupeScopeKey(windowSize);
   if (!trackId) return;
-  if (playlistCache.windowSize !== windowSize || playlistCache.updatedAt === 0) return;
+  if (playlistCache.scopeKey !== scopeKey || playlistCache.updatedAt === 0) return;
   const previousSize = playlistCache.ids.size;
   playlistCache.ids.add(trackId);
   if (playlistCache.ids.size > previousSize) playlistCache.total += 1;
@@ -311,7 +337,7 @@ async function scanPlaylistTrackIds(windowSize, total) {
   const ids = new Set();
   const base = `https://api.spotify.com/v1/playlists/${SPOTIFY_PLAYLIST_ID}/tracks`;
   const end = Math.max(0, total);
-  let offset = Math.max(0, end - windowSize);
+  let offset = windowSize == null ? 0 : Math.max(0, end - windowSize);
 
   while (offset < end) {
     const limit = Math.min(100, end - offset);
@@ -331,6 +357,7 @@ async function scanPlaylistTrackIds(windowSize, total) {
 
 async function refreshPlaylistCache(windowSize, meta = null) {
   if (playlistCacheRefreshPromise) return playlistCacheRefreshPromise;
+  const scopeKey = dedupeScopeKey(windowSize);
 
   playlistCacheRefreshPromise = (async () => {
     const resolvedMeta = meta || await fetchPlaylistMeta();
@@ -338,7 +365,7 @@ async function refreshPlaylistCache(windowSize, meta = null) {
     playlistCache.ids = ids;
     playlistCache.snapshotId = resolvedMeta.snapshotId || "";
     playlistCache.total = resolvedMeta.total;
-    playlistCache.windowSize = windowSize;
+    playlistCache.scopeKey = scopeKey;
     playlistCache.updatedAt = Date.now();
     return playlistCache;
   })();
@@ -358,7 +385,7 @@ async function playlistHasTrackDirect(trackId, windowSize) {
   const total = Number(meta.total || 0);
 
   // 2) Scan from the end (most recent first)
-  let offset = Math.max(0, total - windowSize);
+  let offset = windowSize == null ? 0 : Math.max(0, total - windowSize);
   const end = total;
 
   while (offset < end) {
@@ -398,7 +425,7 @@ async function playlistHasTrackCached(trackId, windowSize) {
   return playlistCache.ids.has(trackId);
 }
 
-/** Read the last N items of the playlist and see if trackId exists. */
+/** Check playlist for duplicates using configured scope (last N or full playlist). */
 async function playlistHasTrack(trackId) {
   const windowSize = getDedupeWindow();
   try {

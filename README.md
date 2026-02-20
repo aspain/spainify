@@ -143,6 +143,7 @@ Template: `apps/add-current/.env.example`
 SPOTIFY_CLIENT_ID=your_spotify_client_id
 SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
 SPOTIFY_REFRESH_TOKEN=your_refresh_token
+# Accepts playlist ID, spotify:playlist:... URI, or open.spotify.com URL
 SPOTIFY_PLAYLIST_ID=your_playlist_id
 
 # Sonos HTTP API base (usually localhost:5005)
@@ -154,7 +155,9 @@ PREFERRED_ROOM=
 # Service port
 PORT=3030
 
-# How many of the most recently added songs will be checked for duplicates
+# Duplicate check scope:
+# - number => check only last N playlist entries (faster first sync)
+# - all    => check full playlist (slower first sync, then cached)
 DE_DUPE_WINDOW=750
 ```
 

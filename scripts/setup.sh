@@ -124,6 +124,67 @@ sanitize_room_default() {
   printf '%s' "$value"
 }
 
+normalize_spotify_playlist_id() {
+  local input
+  input="$(spainify_trim "${1:-}")"
+  if [[ -z "$input" ]]; then
+    printf ''
+    return
+  fi
+
+  if [[ "$input" =~ spotify:playlist:([A-Za-z0-9]+) ]]; then
+    printf '%s' "${BASH_REMATCH[1]}"
+    return
+  fi
+
+  if [[ "$input" =~ open\.spotify\.com/playlist/([A-Za-z0-9]+) ]]; then
+    printf '%s' "${BASH_REMATCH[1]}"
+    return
+  fi
+
+  if [[ "$input" =~ ^[A-Za-z0-9]+$ ]]; then
+    printf '%s' "$input"
+    return
+  fi
+
+  # Return original value if no known format matched.
+  printf '%s' "$input"
+}
+
+is_all_playlist_dedupe_value() {
+  local raw
+  raw="$(spainify_to_lower "$(spainify_trim "${1:-}")")"
+  case "$raw" in
+    all|full|entire|none|0) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+sanitize_dedupe_window_value() {
+  local raw
+  local fallback="${2:-750}"
+  local trimmed
+  trimmed="$(spainify_trim "${1:-}")"
+  raw="$(spainify_to_lower "$trimmed")"
+
+  if [[ -z "$trimmed" ]]; then
+    printf '%s' "$fallback"
+    return
+  fi
+
+  if is_all_playlist_dedupe_value "$trimmed"; then
+    printf 'all'
+    return
+  fi
+
+  if [[ "$raw" =~ ^[0-9]+$ ]] && (( raw >= 1 )); then
+    printf '%s' "$raw"
+    return
+  fi
+
+  printf '%s' "$fallback"
+}
+
 load_available_sonos_rooms() {
   local sonos_base="$1"
   local tmp_json
@@ -687,10 +748,40 @@ if [[ "$ENABLE_ADD_CURRENT" == "1" ]]; then
     fi
   fi
   ADD_CURRENT_REFRESH_TOKEN="$(prompt_text "Spotify refresh token" "$ADD_CURRENT_REFRESH_TOKEN")"
-  ADD_CURRENT_PLAYLIST_ID="$(prompt_text "Spotify playlist ID (optional)" "$ADD_CURRENT_PLAYLIST_ID")"
-  ADD_CURRENT_SONOS_HTTP_BASE="$(prompt_required_text "Sonos HTTP base URL" "$ADD_CURRENT_SONOS_HTTP_BASE")"
-  ADD_CURRENT_PREFERRED_ROOM="$(prompt_text "Preferred Sonos room for add-current (optional)" "$ADD_CURRENT_PREFERRED_ROOM")"
-  ADD_CURRENT_DEDUPE_WINDOW="$(prompt_text "De-dupe window size" "$ADD_CURRENT_DEDUPE_WINDOW")"
+  add_current_playlist_input="$(prompt_text "Spotify playlist (ID/URI/URL, optional)" "$ADD_CURRENT_PLAYLIST_ID")"
+  ADD_CURRENT_PLAYLIST_ID="$(normalize_spotify_playlist_id "$add_current_playlist_input")"
+
+  if [[ "$ADD_CURRENT_PLAYLIST_ID" != "$add_current_playlist_input" && -n "$ADD_CURRENT_PLAYLIST_ID" ]]; then
+    echo "Using playlist ID: $ADD_CURRENT_PLAYLIST_ID"
+  fi
+
+  if [[ -z "$ADD_CURRENT_SONOS_HTTP_BASE" ]]; then
+    ADD_CURRENT_SONOS_HTTP_BASE="http://127.0.0.1:5005"
+  fi
+  if [[ -z "$ADD_CURRENT_PREFERRED_ROOM" ]]; then
+    ADD_CURRENT_PREFERRED_ROOM="$SONOS_ROOM_VALUE"
+  fi
+
+  dedupe_all_default="0"
+  if is_all_playlist_dedupe_value "$ADD_CURRENT_DEDUPE_WINDOW"; then
+    dedupe_all_default="1"
+  fi
+  dedupe_all_playlist="$(prompt_yes_no "Check entire playlist for duplicates?" "$dedupe_all_default")"
+  if [[ "$dedupe_all_playlist" == "1" ]]; then
+    ADD_CURRENT_DEDUPE_WINDOW="all"
+  else
+    ADD_CURRENT_DEDUPE_WINDOW="$(sanitize_dedupe_window_value "$ADD_CURRENT_DEDUPE_WINDOW" "750")"
+  fi
+
+  configure_add_current_advanced="$(prompt_yes_no "Configure advanced add-current options?" "0")"
+  if [[ "$configure_add_current_advanced" == "1" ]]; then
+    ADD_CURRENT_SONOS_HTTP_BASE="$(prompt_required_text "Sonos HTTP base URL" "$ADD_CURRENT_SONOS_HTTP_BASE")"
+    ADD_CURRENT_PREFERRED_ROOM="$(prompt_text "Preferred Sonos room (optional)" "$ADD_CURRENT_PREFERRED_ROOM")"
+    if [[ "$dedupe_all_playlist" != "1" ]]; then
+      ADD_CURRENT_DEDUPE_WINDOW="$(prompt_text "De-dupe window size" "$ADD_CURRENT_DEDUPE_WINDOW")"
+      ADD_CURRENT_DEDUPE_WINDOW="$(sanitize_dedupe_window_value "$ADD_CURRENT_DEDUPE_WINDOW" "750")"
+    fi
+  fi
 
   if [[ -z "$ADD_CURRENT_CLIENT_ID" || -z "$ADD_CURRENT_CLIENT_SECRET" || -z "$ADD_CURRENT_REFRESH_TOKEN" ]]; then
     echo "Warning: add-current is enabled but Spotify credentials are incomplete."
