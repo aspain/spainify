@@ -748,7 +748,7 @@ if [[ "$ENABLE_ADD_CURRENT" == "1" ]]; then
     fi
   fi
   ADD_CURRENT_REFRESH_TOKEN="$(prompt_text "Spotify refresh token" "$ADD_CURRENT_REFRESH_TOKEN")"
-  add_current_playlist_input="$(prompt_text "Spotify playlist (ID/URI/URL, optional)" "$ADD_CURRENT_PLAYLIST_ID")"
+  add_current_playlist_input="$(prompt_text "Spotify playlist link or ID (example: https://open.spotify.com/playlist/3kQGrwA1LHaM2tt4qqfC2Y)" "$ADD_CURRENT_PLAYLIST_ID")"
   ADD_CURRENT_PLAYLIST_ID="$(normalize_spotify_playlist_id "$add_current_playlist_input")"
 
   if [[ "$ADD_CURRENT_PLAYLIST_ID" != "$add_current_playlist_input" && -n "$ADD_CURRENT_PLAYLIST_ID" ]]; then
