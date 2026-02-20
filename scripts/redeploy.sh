@@ -78,7 +78,10 @@ fi
 
 set_service_flags_from_config "$MODE"
 
-dependency_notes="$(spainify_apply_service_dependencies || true)"
+dependency_notes_file="$(mktemp)"
+spainify_apply_service_dependencies >"$dependency_notes_file" || true
+dependency_notes="$(cat "$dependency_notes_file")"
+rm -f "$dependency_notes_file"
 
 if [[ "$MODE" == "legacy-full" ]]; then
   echo "==> No .spainify-device.env found; using legacy full redeploy mode"

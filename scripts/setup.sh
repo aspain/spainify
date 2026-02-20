@@ -116,17 +116,17 @@ prompt_sonos_room() {
   SONOS_ROOMS=()
 
   if load_available_sonos_rooms "$sonos_base"; then
-    echo
-    echo "Discovered Sonos rooms from $sonos_base:"
+    echo >&2
+    echo "Discovered Sonos rooms from $sonos_base:" >&2
     i=1
     while (( i <= ${#SONOS_ROOMS[@]} )); do
-      echo "  $i) ${SONOS_ROOMS[$((i - 1))]}"
+      echo "  $i) ${SONOS_ROOMS[$((i - 1))]}" >&2
       if [[ "${SONOS_ROOMS[$((i - 1))]}" == "$default_room" ]]; then
         prompt_default="$i"
       fi
       ((i++))
     done
-    echo "  0) Enter room manually"
+    echo "  0) Enter room manually" >&2
 
     if [[ -n "$prompt_default" ]]; then
       read -r -p "Choose Sonos room number [$prompt_default] " choice || true
@@ -145,8 +145,8 @@ prompt_sonos_room() {
       return
     fi
   else
-    echo
-    echo "Could not auto-discover Sonos rooms from $sonos_base; falling back to manual entry."
+    echo >&2
+    echo "Could not auto-discover Sonos rooms from $sonos_base; falling back to manual entry." >&2
   fi
 
   prompt_required_text "Enter Sonos room name" "$default_room"
@@ -250,17 +250,20 @@ fi
 
 for key in "${SPAINIFY_SERVICE_KEYS[@]}"; do
   current_value="${!key:-$(spainify_service_default "$key")}"
-  eval "$key=$(spainify_normalize_bool \"$current_value\" \"$(spainify_service_default "$key")\")"
+  printf -v "$key" '%s' "$(spainify_normalize_bool "$current_value" "$(spainify_service_default "$key")")"
 done
 
 echo
 for key in "${SPAINIFY_SERVICE_KEYS[@]}"; do
   prompt="$(spainify_service_prompt "$key")"
   answer="$(prompt_yes_no "$prompt" "${!key}")"
-  eval "$key=$answer"
+  printf -v "$key" '%s' "$(spainify_normalize_bool "$answer" "${!key}")"
 done
 
-dependency_notes="$(spainify_apply_service_dependencies || true)"
+dependency_notes_file="$(mktemp)"
+spainify_apply_service_dependencies >"$dependency_notes_file" || true
+dependency_notes="$(cat "$dependency_notes_file")"
+rm -f "$dependency_notes_file"
 if [[ -n "$dependency_notes" ]]; then
   echo
   echo "Dependency adjustments:"

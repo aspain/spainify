@@ -47,10 +47,22 @@ spainify_to_lower() {
   printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
 }
 
+spainify_trim() {
+  local value="${1:-}"
+  # Strip carriage returns and trim leading/trailing whitespace.
+  value="${value//$'\r'/}"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  printf '%s' "$value"
+}
+
 spainify_normalize_bool() {
-  local raw="${1:-}"
-  local default_raw="${2:-0}"
+  local raw
+  local default_raw
   local lowered
+
+  raw="$(spainify_trim "${1:-}")"
+  default_raw="$(spainify_trim "${2:-0}")"
 
   lowered="$(spainify_to_lower "$raw")"
   case "$lowered" in
