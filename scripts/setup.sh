@@ -942,41 +942,34 @@ if [[ "$ENABLE_ADD_CURRENT" == "1" ]]; then
   ADD_CURRENT_CLIENT_ID="$(prompt_text "Spotify client ID" "$ADD_CURRENT_CLIENT_ID")"
   ADD_CURRENT_CLIENT_SECRET="$(prompt_text "Spotify client secret" "$ADD_CURRENT_CLIENT_SECRET")"
   if [[ -n "$ADD_CURRENT_CLIENT_ID" && -n "$ADD_CURRENT_CLIENT_SECRET" ]]; then
-    fetch_token_now_default="0"
-    if [[ -z "$ADD_CURRENT_REFRESH_TOKEN" ]]; then
-      fetch_token_now_default="1"
-    fi
-    fetch_token_now="$(prompt_yes_no "Automatically fetch Spotify refresh token now?" "$fetch_token_now_default")"
-    if [[ "$fetch_token_now" == "1" ]]; then
-      if start_spotify_auth_helper "$ADD_CURRENT_CLIENT_ID" "$ADD_CURRENT_CLIENT_SECRET"; then
-        echo
-        if [[ -n "${SSH_CONNECTION:-}" ]]; then
-          pi_ip="$(first_ipv4_address)"
-          pi_user="$(id -un)"
-          if [[ -z "$pi_ip" ]]; then
-            pi_ip="raspberrypi.local"
-          fi
-          echo "Spotify auth uses 127.0.0.1 redirect."
-          echo "From your Mac, open a new terminal and run:"
-          echo "  ssh -N -L 8888:127.0.0.1:8888 $pi_user@$pi_ip"
-          echo "Then open in your Mac browser:"
-          echo "  http://127.0.0.1:8888/login"
-        else
-          echo "Open this URL in a browser and approve Spotify access:"
-          echo "  http://127.0.0.1:8888/login"
+    if start_spotify_auth_helper "$ADD_CURRENT_CLIENT_ID" "$ADD_CURRENT_CLIENT_SECRET"; then
+      echo
+      if [[ -n "${SSH_CONNECTION:-}" ]]; then
+        pi_ip="$(first_ipv4_address)"
+        pi_user="$(id -un)"
+        if [[ -z "$pi_ip" ]]; then
+          pi_ip="raspberrypi.local"
         fi
-        echo "Waiting for callback to capture refresh token (up to 5 minutes)..."
-        fetched_refresh_token="$(wait_for_spotify_refresh_token 300 || true)"
-        if [[ -n "$fetched_refresh_token" ]]; then
-          ADD_CURRENT_REFRESH_TOKEN="$fetched_refresh_token"
-          token_captured_automatically="1"
-          echo "Refresh token captured automatically."
-        else
-          echo "Timed out waiting for Spotify callback. You can paste token manually."
-        fi
+        echo "Spotify auth uses 127.0.0.1 redirect."
+        echo "From your Mac, open a new terminal and run:"
+        echo "  ssh -N -L 8888:127.0.0.1:8888 $pi_user@$pi_ip"
+        echo "Then open in your Mac browser:"
+        echo "  http://127.0.0.1:8888/login"
+      else
+        echo "Open this URL in a browser and approve Spotify access:"
+        echo "  http://127.0.0.1:8888/login"
       fi
-      cleanup_setup_helpers
+      echo "Waiting for callback to capture refresh token (up to 5 minutes)..."
+      fetched_refresh_token="$(wait_for_spotify_refresh_token 300 || true)"
+      if [[ -n "$fetched_refresh_token" ]]; then
+        ADD_CURRENT_REFRESH_TOKEN="$fetched_refresh_token"
+        token_captured_automatically="1"
+        echo "Refresh token captured automatically."
+      else
+        echo "Timed out waiting for Spotify callback. You can paste token manually."
+      fi
     fi
+    cleanup_setup_helpers
   fi
   if [[ "$token_captured_automatically" != "1" ]]; then
     ADD_CURRENT_REFRESH_TOKEN="$(prompt_text "Spotify refresh token" "$ADD_CURRENT_REFRESH_TOKEN")"
