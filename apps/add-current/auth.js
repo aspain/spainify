@@ -21,23 +21,16 @@ const SCOPES = [
 const { SPAINIFY_TOKEN_FILE } = process.env;
 let latestRefreshToken = "";
 
-function getRedirectUri(req) {
-  const configured = (process.env.PI_HOST || "").trim();
-  if (configured) {
-    const withoutScheme = configured.replace(/^https?:\/\//, "");
-    const hasPort = /:\d+$/.test(withoutScheme);
-    const host = hasPort ? withoutScheme : `${withoutScheme}:${PORT}`;
-    return `http://${host}/callback`;
-  }
-
-  const hostHeader = (req.get("host") || "").trim();
-  if (hostHeader) return `http://${hostHeader}/callback`;
-
-  return `http://127.0.0.1:${PORT}/callback`;
+function getRedirectUri() {
+  const configured = (process.env.PI_HOST || "127.0.0.1").trim();
+  const withoutScheme = configured.replace(/^https?:\/\//, "");
+  const hasPort = /:\d+$/.test(withoutScheme);
+  const host = hasPort ? withoutScheme : `${withoutScheme}:${PORT}`;
+  return `http://${host}/callback`;
 }
 
 app.get("/login", (_req, res) => {
-  const REDIRECT_URI = getRedirectUri(_req);
+  const REDIRECT_URI = getRedirectUri();
   const params = new URLSearchParams({
     client_id: SPOTIFY_CLIENT_ID,
     response_type: "code",
@@ -51,7 +44,7 @@ app.get("/login", (_req, res) => {
 app.get("/callback", async (req, res) => {
   const code = req.query.code;
   if (!code) return res.status(400).send("Missing ?code");
-  const REDIRECT_URI = getRedirectUri(req);
+  const REDIRECT_URI = getRedirectUri();
 
   const body = new URLSearchParams({
     grant_type: "authorization_code",
@@ -107,5 +100,5 @@ app.get("/healthz", (_req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Auth helper on http://localhost:${PORT}`);
-  console.log(`Use the same host in /login and Spotify redirect URI (for example: 127.0.0.1 or <PI_IP>).`);
+  console.log(`Redirect URI in use: ${getRedirectUri()}`);
 });

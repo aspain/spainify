@@ -636,19 +636,12 @@ first_ipv4_address() {
 }
 
 print_spotify_setup_help() {
-  local host_ip=""
-
-  host_ip="$(first_ipv4_address)"
-
   echo "Spotify app setup (for add-current):"
   echo "  Dashboard: https://developer.spotify.com/dashboard"
   echo "  Add these Redirect URI values in your Spotify app settings:"
   echo "    - http://127.0.0.1:8888/callback"
-  if [[ -n "$host_ip" ]]; then
-    echo "    - http://$host_ip:8888/callback"
-  fi
-  echo "  Note: Spotify may flag local HTTP callbacks as 'not secure';"
-  echo "        use loopback IPs (127.0.0.1 / [::1]) instead of localhost."
+  echo "  Note: Spotify rejects most non-HTTPS LAN callback URLs."
+  echo "        Use loopback (127.0.0.1) for reliable auth."
   echo "  Setup can launch Spotify login and capture refresh token automatically."
 }
 
@@ -695,6 +688,7 @@ start_spotify_auth_helper() {
     cd "$auth_dir" && \
     SPOTIFY_CLIENT_ID="$client_id" \
     SPOTIFY_CLIENT_SECRET="$client_secret" \
+    PI_HOST="127.0.0.1" \
     SPAINIFY_TOKEN_FILE="$SPOTIFY_AUTH_TOKEN_FILE" \
     node auth.js >/tmp/spainify-setup-spotify-auth.log 2>&1
   ) &
@@ -970,13 +964,22 @@ if [[ "$ENABLE_ADD_CURRENT" == "1" ]]; then
     fetch_token_now="$(prompt_yes_no "Automatically fetch Spotify refresh token now?" "$fetch_token_now_default")"
     if [[ "$fetch_token_now" == "1" ]]; then
       if start_spotify_auth_helper "$ADD_CURRENT_CLIENT_ID" "$ADD_CURRENT_CLIENT_SECRET"; then
-        spotify_login_host="$(first_ipv4_address)"
-        if [[ -z "$spotify_login_host" ]]; then
-          spotify_login_host="127.0.0.1"
-        fi
         echo
-        echo "Open this URL in a browser and approve Spotify access:"
-        echo "  http://$spotify_login_host:8888/login"
+        if [[ -n "${SSH_CONNECTION:-}" ]]; then
+          pi_ip="$(first_ipv4_address)"
+          pi_user="$(id -un)"
+          if [[ -z "$pi_ip" ]]; then
+            pi_ip="raspberrypi.local"
+          fi
+          echo "Spotify auth uses 127.0.0.1 redirect."
+          echo "From your Mac, open a new terminal and run:"
+          echo "  ssh -N -L 8888:127.0.0.1:8888 $pi_user@$pi_ip"
+          echo "Then open in your Mac browser:"
+          echo "  http://127.0.0.1:8888/login"
+        else
+          echo "Open this URL in a browser and approve Spotify access:"
+          echo "  http://127.0.0.1:8888/login"
+        fi
         echo "Waiting for callback to capture refresh token (up to 5 minutes)..."
         fetched_refresh_token="$(wait_for_spotify_refresh_token 300 || true)"
         if [[ -n "$fetched_refresh_token" ]]; then

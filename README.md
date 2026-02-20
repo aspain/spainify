@@ -71,7 +71,9 @@ node auth.js
 
 Then in a browser:
 
-1. Open `http://<pi-ip>:8888/login`
+1. Create a local tunnel from your laptop/desktop:
+   `ssh -N -L 8888:127.0.0.1:8888 <pi-user>@<pi-ip>`
+2. Open `http://127.0.0.1:8888/login`
 2. Approve Spotify permissions
 3. Copy the `refresh_token` shown
 4. Re-run `./setup.sh` and paste the token when prompted
@@ -93,7 +95,7 @@ Then in a browser:
 - Weather dashboard: `http://localhost:3000`
 - Sonos HTTP API: `http://localhost:5005`
 - Add-current microservice: `http://localhost:3030`
-- Spotify auth helper (only for add-to-playlist; now-playing needs no auth): `http://<pi-ip>:8888/login`
+- Spotify auth helper (only for add-to-playlist; now-playing needs no auth): `http://127.0.0.1:8888/login` (via SSH tunnel)
 
 ---
 
