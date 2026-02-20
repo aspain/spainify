@@ -35,6 +35,7 @@ render_and_install_unit() {
 set_service_flags_from_config() {
   local mode="$1"
   local key
+  local normalized
 
   if [[ "$mode" == "legacy-full" ]]; then
     for key in "${SPAINIFY_SERVICE_KEYS[@]}"; do
@@ -44,7 +45,8 @@ set_service_flags_from_config() {
   fi
 
   for key in "${SPAINIFY_SERVICE_KEYS[@]}"; do
-    eval "$key=$(spainify_normalize_bool \"${!key:-}\" \"$(spainify_service_default "$key")\")"
+    normalized="$(spainify_normalize_bool "${!key:-}" "$(spainify_service_default "$key")")"
+    printf -v "$key" '%s' "$normalized"
   done
 }
 
