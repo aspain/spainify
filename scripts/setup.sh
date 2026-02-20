@@ -21,7 +21,7 @@ prompt_yes_no() {
     hint="y/N"
   fi
 
-  read -r -p "$question [$hint] " answer || true
+  read -r -p "$question: [$hint] " answer || true
   if [[ -z "$answer" ]]; then
     answer="$default"
   fi
@@ -34,9 +34,9 @@ prompt_text() {
   local answer
 
   if [[ -n "$default_value" ]]; then
-    read -r -p "$question [$default_value] " answer || true
+    read -r -p "$question: [$default_value] " answer || true
   else
-    read -r -p "$question " answer || true
+    read -r -p "$question: " answer || true
   fi
 
   if [[ -z "$answer" ]]; then
@@ -91,7 +91,7 @@ load_available_sonos_rooms() {
   fi
 
   tmp_json="$(mktemp)"
-  if ! curl -fsS --max-time 3 "$sonos_base/zones" >"$tmp_json"; then
+  if ! curl -fsS --max-time 3 "$sonos_base/zones" >"$tmp_json" 2>/dev/null; then
     rm -f "$tmp_json"
     return 1
   fi
@@ -129,9 +129,9 @@ prompt_sonos_room() {
     echo "  0) Enter room manually" >&2
 
     if [[ -n "$prompt_default" ]]; then
-      read -r -p "Choose Sonos room number [$prompt_default] " choice || true
+      read -r -p "Choose Sonos room number: [$prompt_default] " choice || true
     else
-      read -r -p "Choose Sonos room number [0] " choice || true
+      read -r -p "Choose Sonos room number: [0] " choice || true
       choice="${choice:-0}"
     fi
 
@@ -292,10 +292,7 @@ HIDE_CURSOR_WHILE_DISPLAYING_VALUE="$(read_existing_or_default "$display_env_fil
 HIDE_CURSOR_IDLE_SECONDS_VALUE="$(read_existing_or_default "$display_env_file" "HIDE_CURSOR_IDLE_SECONDS" "0.1")"
 if [[ "$ENABLE_SPOTIFY_DISPLAY" == "1" ]]; then
   echo
-  HIDE_CURSOR_WHILE_DISPLAYING_VALUE="$(prompt_yes_no "Hide cursor while displaying content?" "$HIDE_CURSOR_WHILE_DISPLAYING_VALUE")"
-  if [[ "$HIDE_CURSOR_WHILE_DISPLAYING_VALUE" == "1" ]]; then
-    HIDE_CURSOR_IDLE_SECONDS_VALUE="$(prompt_text "Cursor hide idle seconds" "$HIDE_CURSOR_IDLE_SECONDS_VALUE")"
-  fi
+  HIDE_CURSOR_WHILE_DISPLAYING_VALUE="$(prompt_yes_no "Hide mouse cursor while content is showing?" "$HIDE_CURSOR_WHILE_DISPLAYING_VALUE")"
 fi
 
 ADD_CURRENT_CLIENT_ID="$(read_existing_or_default "$add_current_env_file" "SPOTIFY_CLIENT_ID" "")"
@@ -338,16 +335,12 @@ SONIFY_METADATA_BASE=""
 if [[ "$ENABLE_SONIFY_SERVE" == "1" ]]; then
   echo
   if [[ "$ENABLE_ADD_CURRENT" == "1" ]]; then
-    use_local_metadata="$(prompt_yes_no "Use local add-current endpoint for Sonify metadata (http://localhost:3030)?" "1")"
-    if [[ "$use_local_metadata" == "1" ]]; then
-      SONIFY_METADATA_BASE="http://localhost:3030"
-    else
-      SONIFY_METADATA_BASE="$(prompt_text "Custom metadata endpoint URL (leave empty to disable)" "$SONIFY_METADATA_BASE_EXISTING")"
-    fi
+    SONIFY_METADATA_BASE="http://localhost:3030"
+    echo "Sonify track-details source: $SONIFY_METADATA_BASE (local add-current)"
   else
-    use_remote_metadata="$(prompt_yes_no "Use remote metadata endpoint for Sonify enrichment?" "$( [[ -n "$SONIFY_METADATA_BASE_EXISTING" ]] && echo 1 || echo 0 )")"
+    use_remote_metadata="$(prompt_yes_no "Use extra Spotify track details from another Pi?" "$( [[ -n "$SONIFY_METADATA_BASE_EXISTING" ]] && echo 1 || echo 0 )")"
     if [[ "$use_remote_metadata" == "1" ]]; then
-      SONIFY_METADATA_BASE="$(prompt_required_text "Remote metadata endpoint URL (e.g. http://192.168.x.x:3030)" "$SONIFY_METADATA_BASE_EXISTING")"
+      SONIFY_METADATA_BASE="$(prompt_required_text "Track-details API URL (example: http://192.168.x.x:3030)" "${SONIFY_METADATA_BASE_EXISTING:-http://localhost:3030}")"
     fi
   fi
 fi

@@ -23,11 +23,11 @@ spainify_service_unit() {
 
 spainify_service_prompt() {
   case "$1" in
-    ENABLE_ADD_CURRENT) echo "Enable add-current (playlist + metadata API)?" ;;
-    ENABLE_SPOTIFY_DISPLAY) echo "Enable spotify_display (screen controller)?" ;;
-    ENABLE_WEATHER_DASHBOARD) echo "Enable weather-dashboard?" ;;
-    ENABLE_SONOS_HTTP_API) echo "Enable sonos-http-api?" ;;
-    ENABLE_SONIFY_SERVE) echo "Enable sonify-serve (now-playing frontend)?" ;;
+    ENABLE_ADD_CURRENT) echo "Enable add-current (playlist + track-details API)" ;;
+    ENABLE_SPOTIFY_DISPLAY) echo "Enable display controller (spotify_display)" ;;
+    ENABLE_WEATHER_DASHBOARD) echo "Enable weather dashboard" ;;
+    ENABLE_SONOS_HTTP_API) echo "Enable Sonos API service" ;;
+    ENABLE_SONIFY_SERVE) echo "Enable now-playing web UI (sonify-serve)" ;;
     *) return 1 ;;
   esac
 }
