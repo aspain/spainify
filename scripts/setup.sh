@@ -190,7 +190,7 @@ sock.settimeout(1.2)
 for _ in range(3):
     sock.sendto(MSEARCH, ("239.255.255.250", 1900))
     time.sleep(0.2)
-deadline = time.time() + 4.0
+deadline = time.time() + 6.0
 
 while time.time() < deadline:
     try:
@@ -375,15 +375,14 @@ print_spotify_setup_help() {
   echo "  Dashboard: https://developer.spotify.com/dashboard"
   echo "  Add these Redirect URI values in your Spotify app settings:"
   echo "    - http://127.0.0.1:8888/callback"
-  echo "    - http://localhost:8888/callback"
   if [[ -n "$host_local" ]]; then
     echo "    - http://$host_local:8888/callback"
   fi
   if [[ -n "$host_ip" ]]; then
     echo "    - http://$host_ip:8888/callback"
   fi
-  echo "  Note: Spotify may label local http:// redirect URIs as 'not secure'."
-  echo "        That warning is expected for local development callbacks."
+  echo "  Note: Spotify may flag local HTTP callbacks as 'not secure';"
+  echo "        use loopback IPs (127.0.0.1 / [::1]) instead of localhost."
   echo "  Save settings, then paste Client ID/secret below."
 }
 

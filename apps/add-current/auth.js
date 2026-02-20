@@ -12,16 +12,29 @@ const {
 } = process.env;
 
 const PORT = 8888;
-const REDIRECT_URI = `http://${
-  process.env.PI_HOST || "localhost"
-}:${PORT}/callback`;
 const SCOPES = [
   "playlist-modify-public",
   "playlist-modify-private",
   "user-read-currently-playing"
 ].join(" ");
 
+function getRedirectUri(req) {
+  const configured = (process.env.PI_HOST || "").trim();
+  if (configured) {
+    const withoutScheme = configured.replace(/^https?:\/\//, "");
+    const hasPort = /:\d+$/.test(withoutScheme);
+    const host = hasPort ? withoutScheme : `${withoutScheme}:${PORT}`;
+    return `http://${host}/callback`;
+  }
+
+  const hostHeader = (req.get("host") || "").trim();
+  if (hostHeader) return `http://${hostHeader}/callback`;
+
+  return `http://127.0.0.1:${PORT}/callback`;
+}
+
 app.get("/login", (_req, res) => {
+  const REDIRECT_URI = getRedirectUri(_req);
   const params = new URLSearchParams({
     client_id: SPOTIFY_CLIENT_ID,
     response_type: "code",
@@ -35,6 +48,7 @@ app.get("/login", (_req, res) => {
 app.get("/callback", async (req, res) => {
   const code = req.query.code;
   if (!code) return res.status(400).send("Missing ?code");
+  const REDIRECT_URI = getRedirectUri(req);
 
   const body = new URLSearchParams({
     grant_type: "authorization_code",
@@ -68,7 +82,5 @@ app.get("/callback", async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Auth helper on http://localhost:${PORT}`);
-  console.log(`If browsing from another device, use http://<PI_IP>:${PORT}/login`);
-  console.log(`Redirect URI expected: ${REDIRECT_URI}`);
+  console.log(`Use the same host in /login and Spotify redirect URI (for example: 127.0.0.1 or <PI_IP>).`);
 });
-
