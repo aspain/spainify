@@ -92,6 +92,27 @@ read_existing_or_default() {
   printf '%s' "$value"
 }
 
+sanitize_room_default() {
+  local value
+  value="$(spainify_trim "${1:-}")"
+
+  # Drop wrapping quotes if present.
+  if [[ "$value" == \"*\" && "$value" == *\" ]]; then
+    value="${value#\"}"
+    value="${value%\"}"
+  fi
+  if [[ "$value" == \'*\' && "$value" == *\' ]]; then
+    value="${value#\'}"
+    value="${value%\'}"
+  fi
+
+  # Guard against broken prior values such as a standalone quote.
+  if [[ -z "$value" || "$value" == '"' || "$value" == "'" ]]; then
+    value="Living Room"
+  fi
+  printf '%s' "$value"
+}
+
 load_available_sonos_rooms() {
   local sonos_base="$1"
   local tmp_json
@@ -119,7 +140,7 @@ load_available_sonos_rooms() {
 boot_temp_sonos_http_api() {
   local sonos_base="$1"
   local api_dir="$ROOT_DIR/apps/sonos-http-api"
-  local wait_seconds=15
+  local wait_seconds=30
   local i
 
   case "$sonos_base" in
@@ -143,6 +164,7 @@ boot_temp_sonos_http_api() {
   fi
 
   if [[ ! -d "$api_dir/node_modules" ]]; then
+    echo "Installing Sonos API dependencies for room discovery..." >&2
     (cd "$api_dir" && npm install --no-audit --no-fund >/dev/null)
   fi
 
@@ -364,6 +386,7 @@ default_room="$(read_existing_or_default "$display_env_file" "SONOS_ROOM" "")"
 if [[ -z "$default_room" ]]; then
   default_room="$(read_existing_or_default "$sonify_env_local_file" "VUE_APP_SONOS_ROOM" "Living Room")"
 fi
+default_room="$(sanitize_room_default "$default_room")"
 
 SONOS_ROOM_VALUE="$default_room"
 if [[ "$ENABLE_SPOTIFY_DISPLAY" == "1" || "$ENABLE_SONIFY_SERVE" == "1" || "$ENABLE_ADD_CURRENT" == "1" ]]; then
