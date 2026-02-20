@@ -1,6 +1,7 @@
 import express from "express";
 import fetch from "node-fetch";
 import dotenv from "dotenv";
+import fs from "node:fs/promises";
 import { URLSearchParams } from "node:url";
 
 dotenv.config();
@@ -17,6 +18,8 @@ const SCOPES = [
   "playlist-modify-private",
   "user-read-currently-playing"
 ].join(" ");
+const { SPAINIFY_TOKEN_FILE } = process.env;
+let latestRefreshToken = "";
 
 function getRedirectUri(req) {
   const configured = (process.env.PI_HOST || "").trim();
@@ -69,7 +72,20 @@ app.get("/callback", async (req, res) => {
     return res.status(500).send("Token exchange failed: " + JSON.stringify(j));
   }
 
-  const refresh = j.refresh_token;
+  const refresh = (j.refresh_token || "").trim();
+  if (!refresh) {
+    return res.status(500).send("Spotify returned no refresh_token. Re-run /login and approve access.");
+  }
+
+  latestRefreshToken = refresh;
+  if (SPAINIFY_TOKEN_FILE) {
+    try {
+      await fs.writeFile(SPAINIFY_TOKEN_FILE, refresh, "utf8");
+    } catch (_err) {
+      // Best effort only; setup.sh can still read via /token endpoint.
+    }
+  }
+
   res.send(`
     <h3>Success!</h3>
     <p><strong>Refresh token:</strong></p>
@@ -78,6 +94,15 @@ app.get("/callback", async (req, res) => {
   `);
 
   console.log("\nREFRESH TOKEN:\n", refresh, "\n");
+});
+
+app.get("/token", (_req, res) => {
+  if (!latestRefreshToken) return res.status(204).send("");
+  return res.type("text/plain").send(latestRefreshToken);
+});
+
+app.get("/healthz", (_req, res) => {
+  res.json({ ok: true });
 });
 
 app.listen(PORT, () => {

@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEVICE_CONFIG_FILE="$ROOT_DIR/.spainify-device.env"
 DISCOVERY_SONOS_API_PID=""
+SPOTIFY_AUTH_HELPER_PID=""
+SPOTIFY_AUTH_TOKEN_FILE=""
 
 # shellcheck disable=SC1091
 source "$ROOT_DIR/scripts/lib/device_config.sh"
@@ -14,6 +16,15 @@ cleanup_setup_helpers() {
     wait "$DISCOVERY_SONOS_API_PID" 2>/dev/null || true
     DISCOVERY_SONOS_API_PID=""
   fi
+  if [[ -n "$SPOTIFY_AUTH_HELPER_PID" ]] && kill -0 "$SPOTIFY_AUTH_HELPER_PID" >/dev/null 2>&1; then
+    kill "$SPOTIFY_AUTH_HELPER_PID" >/dev/null 2>&1 || true
+    wait "$SPOTIFY_AUTH_HELPER_PID" 2>/dev/null || true
+    SPOTIFY_AUTH_HELPER_PID=""
+  fi
+  if [[ -n "$SPOTIFY_AUTH_TOKEN_FILE" && -f "$SPOTIFY_AUTH_TOKEN_FILE" ]]; then
+    rm -f "$SPOTIFY_AUTH_TOKEN_FILE" || true
+  fi
+  SPOTIFY_AUTH_TOKEN_FILE=""
 }
 trap cleanup_setup_helpers EXIT INT TERM
 
@@ -389,7 +400,79 @@ print_spotify_setup_help() {
   fi
   echo "  Note: Spotify may flag local HTTP callbacks as 'not secure';"
   echo "        use loopback IPs (127.0.0.1 / [::1]) instead of localhost."
-  echo "  Save settings, then paste Client ID/secret below."
+  echo "  Setup can launch Spotify login and capture refresh token automatically."
+}
+
+start_spotify_auth_helper() {
+  local client_id="$1"
+  local client_secret="$2"
+  local auth_dir="$ROOT_DIR/apps/add-current"
+  local i
+
+  if [[ -z "$client_id" || -z "$client_secret" ]]; then
+    echo "Spotify client ID and secret are required to start auth."
+    return 1
+  fi
+  if ! command -v node >/dev/null 2>&1; then
+    echo "Node.js is required for Spotify auth helper."
+    return 1
+  fi
+  if [[ ! -f "$auth_dir/auth.js" ]]; then
+    echo "Could not find add-current auth helper: $auth_dir/auth.js"
+    return 1
+  fi
+
+  cleanup_setup_helpers
+  SPOTIFY_AUTH_TOKEN_FILE="$(mktemp)"
+  (
+    cd "$auth_dir" && \
+    SPOTIFY_CLIENT_ID="$client_id" \
+    SPOTIFY_CLIENT_SECRET="$client_secret" \
+    SPAINIFY_TOKEN_FILE="$SPOTIFY_AUTH_TOKEN_FILE" \
+    node auth.js >/tmp/spainify-setup-spotify-auth.log 2>&1
+  ) &
+  SPOTIFY_AUTH_HELPER_PID="$!"
+
+  for ((i=0; i<15; i++)); do
+    if curl -fsS --max-time 2 "http://127.0.0.1:8888/healthz" >/dev/null 2>&1; then
+      return 0
+    fi
+    if ! kill -0 "$SPOTIFY_AUTH_HELPER_PID" >/dev/null 2>&1; then
+      break
+    fi
+    sleep 1
+  done
+
+  echo "Could not start Spotify auth helper on port 8888."
+  echo "See log: /tmp/spainify-setup-spotify-auth.log"
+  return 1
+}
+
+wait_for_spotify_refresh_token() {
+  local wait_seconds="${1:-300}"
+  local i
+  local token=""
+
+  for ((i=0; i<wait_seconds; i++)); do
+    if [[ -n "$SPOTIFY_AUTH_TOKEN_FILE" && -s "$SPOTIFY_AUTH_TOKEN_FILE" ]]; then
+      token="$(tr -d '\r\n' < "$SPOTIFY_AUTH_TOKEN_FILE")"
+      token="$(spainify_trim "$token")"
+      if [[ -n "$token" ]]; then
+        printf '%s' "$token"
+        return 0
+      fi
+    fi
+
+    token="$(curl -fsS --max-time 2 "http://127.0.0.1:8888/token" 2>/dev/null || true)"
+    token="$(spainify_trim "$token")"
+    if [[ -n "$token" ]]; then
+      printf '%s' "$token"
+      return 0
+    fi
+    sleep 1
+  done
+
+  return 1
 }
 
 set_sonos_rooms_unique_sorted() {
@@ -576,6 +659,33 @@ if [[ "$ENABLE_ADD_CURRENT" == "1" ]]; then
   echo
   ADD_CURRENT_CLIENT_ID="$(prompt_text "Spotify client ID" "$ADD_CURRENT_CLIENT_ID")"
   ADD_CURRENT_CLIENT_SECRET="$(prompt_text "Spotify client secret" "$ADD_CURRENT_CLIENT_SECRET")"
+  if [[ -n "$ADD_CURRENT_CLIENT_ID" && -n "$ADD_CURRENT_CLIENT_SECRET" ]]; then
+    fetch_token_now_default="0"
+    if [[ -z "$ADD_CURRENT_REFRESH_TOKEN" ]]; then
+      fetch_token_now_default="1"
+    fi
+    fetch_token_now="$(prompt_yes_no "Automatically fetch Spotify refresh token now?" "$fetch_token_now_default")"
+    if [[ "$fetch_token_now" == "1" ]]; then
+      if start_spotify_auth_helper "$ADD_CURRENT_CLIENT_ID" "$ADD_CURRENT_CLIENT_SECRET"; then
+        spotify_login_host="$(first_ipv4_address)"
+        if [[ -z "$spotify_login_host" ]]; then
+          spotify_login_host="127.0.0.1"
+        fi
+        echo
+        echo "Open this URL in a browser and approve Spotify access:"
+        echo "  http://$spotify_login_host:8888/login"
+        echo "Waiting for callback to capture refresh token (up to 5 minutes)..."
+        fetched_refresh_token="$(wait_for_spotify_refresh_token 300 || true)"
+        if [[ -n "$fetched_refresh_token" ]]; then
+          ADD_CURRENT_REFRESH_TOKEN="$fetched_refresh_token"
+          echo "Refresh token captured automatically."
+        else
+          echo "Timed out waiting for Spotify callback. You can paste token manually."
+        fi
+      fi
+      cleanup_setup_helpers
+    fi
+  fi
   ADD_CURRENT_REFRESH_TOKEN="$(prompt_text "Spotify refresh token" "$ADD_CURRENT_REFRESH_TOKEN")"
   ADD_CURRENT_PLAYLIST_ID="$(prompt_text "Spotify playlist ID (optional)" "$ADD_CURRENT_PLAYLIST_ID")"
   ADD_CURRENT_SONOS_HTTP_BASE="$(prompt_required_text "Sonos HTTP base URL" "$ADD_CURRENT_SONOS_HTTP_BASE")"
