@@ -1,4 +1,5 @@
 import os
+import re
 import time
 import logging
 import datetime
@@ -224,6 +225,10 @@ def sonos_is_playing(
 
 
 def get_display_power_state(default=True):
+    wayland_state = get_wayland_display_power_state()
+    if wayland_state is not None:
+        return wayland_state
+
     if shutil.which("vcgencmd") is None:
         return default
     try:
@@ -248,6 +253,48 @@ def get_display_power_state(default=True):
     except Exception:
         logging.exception("Failed to read display power state.")
     return default
+
+
+def _parse_wlr_output_enabled(wlr_output, output_name):
+    current_output = None
+    for raw_line in (wlr_output or "").splitlines():
+        line = raw_line.rstrip()
+        if not line:
+            continue
+
+        if not line.startswith(" "):
+            current_output = line.split(" ", 1)[0].strip('"')
+            continue
+
+        if current_output != output_name:
+            continue
+
+        match = re.search(r"Enabled:\s*(yes|no)\s*$", line.strip(), flags=re.IGNORECASE)
+        if match:
+            return match.group(1).lower() == "yes"
+
+    return None
+
+
+def get_wayland_display_power_state():
+    if shutil.which("wlr-randr") is None:
+        return None
+
+    for env_updates in _wayland_env_candidates():
+        try:
+            result = _run_command(["wlr-randr"], env_updates=env_updates)
+        except Exception:
+            continue
+
+        if result.returncode != 0:
+            continue
+
+        enabled = _parse_wlr_output_enabled(result.stdout, DISPLAY_OUTPUT_NAME)
+        if enabled is not None:
+            return enabled
+
+    return None
+
 
 def _wayland_env_candidates():
     candidates = []
@@ -355,7 +402,7 @@ def set_display_power(target_on):
 
     if current_state != target_on and fallback_used:
         logging.warning(
-            "Fallback command completed, but vcgencmd still reports display %s.",
+            "Fallback command completed, but display state still reports %s.",
             "ON" if current_state else "OFF",
         )
     elif current_state == target_on and fallback_used:
