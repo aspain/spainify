@@ -361,23 +361,14 @@ first_ipv4_address() {
 }
 
 print_spotify_setup_help() {
-  local host_short
-  local host_local=""
   local host_ip=""
 
-  host_short="$(hostname -s 2>/dev/null || true)"
   host_ip="$(first_ipv4_address)"
-  if [[ -n "$host_short" && "$host_short" != *.* ]]; then
-    host_local="${host_short}.local"
-  fi
 
   echo "Spotify app setup (for add-current):"
   echo "  Dashboard: https://developer.spotify.com/dashboard"
   echo "  Add these Redirect URI values in your Spotify app settings:"
   echo "    - http://127.0.0.1:8888/callback"
-  if [[ -n "$host_local" ]]; then
-    echo "    - http://$host_local:8888/callback"
-  fi
   if [[ -n "$host_ip" ]]; then
     echo "    - http://$host_ip:8888/callback"
   fi
