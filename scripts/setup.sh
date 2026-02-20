@@ -656,6 +656,7 @@ start_spotify_auth_helper() {
   local client_id="$1"
   local client_secret="$2"
   local auth_dir="$ROOT_DIR/apps/add-current"
+  local helper_pattern="$ROOT_DIR/apps/add-current/auth.js"
   local i
 
   if [[ -z "$client_id" || -z "$client_secret" ]]; then
@@ -669,6 +670,23 @@ start_spotify_auth_helper() {
   if [[ ! -f "$auth_dir/auth.js" ]]; then
     echo "Could not find add-current auth helper: $auth_dir/auth.js"
     return 1
+  fi
+
+  # If a healthy helper is already running, reuse it.
+  if curl -fsS --max-time 2 "http://127.0.0.1:8888/healthz" >/dev/null 2>&1; then
+    echo "Spotify auth helper already running on port 8888; reusing it."
+    return 0
+  fi
+
+  # Clean up stale helper processes that may have survived earlier runs.
+  if command -v pkill >/dev/null 2>&1; then
+    pkill -f "$helper_pattern" >/dev/null 2>&1 || true
+  fi
+
+  # Ensure auth helper dependencies exist before launching node auth.js.
+  if ! (cd "$auth_dir" && node -e "require.resolve('express'); require.resolve('dotenv'); require.resolve('node-fetch')" >/dev/null 2>&1); then
+    echo "Installing add-current dependencies for Spotify auth helper..."
+    (cd "$auth_dir" && npm install --no-audit --no-fund >/dev/null)
   fi
 
   cleanup_setup_helpers
@@ -694,6 +712,9 @@ start_spotify_auth_helper() {
 
   echo "Could not start Spotify auth helper on port 8888."
   echo "See log: /tmp/spainify-setup-spotify-auth.log"
+  if [[ -f /tmp/spainify-setup-spotify-auth.log ]]; then
+    tail -n 20 /tmp/spainify-setup-spotify-auth.log || true
+  fi
   return 1
 }
 
