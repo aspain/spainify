@@ -636,13 +636,17 @@ first_ipv4_address() {
 }
 
 print_spotify_setup_help() {
+  local host_ip=""
+  host_ip="$(first_ipv4_address)"
+
   echo "Spotify app setup (for add-current):"
   echo "  Dashboard: https://developer.spotify.com/dashboard"
   echo "  Add these Redirect URI values in your Spotify app settings:"
   echo "    - http://127.0.0.1:8888/callback"
-  echo "  Note: Spotify rejects most non-HTTPS LAN callback URLs."
-  echo "        Use loopback (127.0.0.1) for reliable auth."
-  echo "  Setup can launch Spotify login and capture refresh token automatically."
+  if [[ -n "$host_ip" ]]; then
+    echo "    - http://$host_ip:8888/callback"
+  fi
+  echo "  Setup will launch Spotify login and capture refresh token automatically."
 }
 
 start_spotify_auth_helper() {
