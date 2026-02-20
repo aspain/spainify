@@ -19,6 +19,7 @@
   --np-artists-line-height: 1.02;
   --np-artists-extra: clamp(8px, 1.6vh, 20px);
   --np-title-artist-gap: clamp(1rem, 7.5vh, 2.75rem);
+  --np-title-artist-gap-tight: calc(var(--np-title-artist-gap) * 0.8);
 
   --np-shell-pad-y: clamp(0.4rem, 1.2vh, 1.5rem);
   --np-shell-pad-x: clamp(0.6rem, 1.8vw, 3rem);
@@ -126,6 +127,12 @@
     .now-playing__artists {
       -webkit-line-clamp: 3;
       max-height: calc((var(--np-artists-size) * var(--np-artists-line-height) * 3) + var(--np-artists-extra));
+    }
+  }
+
+  &--tight-title-artist-gap {
+    .now-playing__track {
+      margin-bottom: var(--np-title-artist-gap-tight);
     }
   }
 

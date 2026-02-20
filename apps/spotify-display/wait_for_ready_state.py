@@ -8,6 +8,13 @@ POLL_INTERVAL_SECONDS = 1.0
 DEFAULT_TIMEOUT_SECONDS = 90
 
 
+def _env_bool(name, default=False):
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _parse_display_socket_path(display_value):
     if not display_value:
         return None
@@ -45,6 +52,8 @@ def _port_is_open(host, port, timeout=0.5):
 def main():
     timeout_seconds = int(os.getenv("STARTUP_READY_TIMEOUT_SECONDS", str(DEFAULT_TIMEOUT_SECONDS)))
     deadline = time.monotonic() + timeout_seconds
+    require_weather = _env_bool("ENABLE_WEATHER_DASHBOARD", True)
+    require_sonify = _env_bool("ENABLE_SONIFY_SERVE", True)
 
     display_socket = _parse_display_socket_path(os.getenv("DISPLAY", ":0"))
 
@@ -54,10 +63,10 @@ def main():
         if display_socket and not _is_unix_socket(display_socket):
             missing.append(f"X display socket {display_socket}")
 
-        if not _port_is_open("127.0.0.1", 3000):
+        if require_weather and not _port_is_open("127.0.0.1", 3000):
             missing.append("weather dashboard port 3000")
 
-        if not _port_is_open("127.0.0.1", 5000):
+        if require_sonify and not _port_is_open("127.0.0.1", 5000):
             missing.append("sonify port 5000")
 
         if not missing:

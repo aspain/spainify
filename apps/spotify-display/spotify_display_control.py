@@ -38,6 +38,7 @@ def _env_bool(name, default=False):
 
 HIDE_CURSOR_WHILE_DISPLAYING = _env_bool("HIDE_CURSOR_WHILE_DISPLAYING", True)
 DEFAULT_CURSOR_IDLE_SECONDS = 0.1
+ENABLE_WEATHER_DASHBOARD = _env_bool("ENABLE_WEATHER_DASHBOARD", True)
 
 
 def _patch_json(path):
@@ -128,7 +129,13 @@ def _mark_sanitized(last_sanitize_path, needs_sanitize_path):
 SONOS_ROOM = os.getenv("SONOS_ROOM", "Living Room")
 
 
-def sonos_is_playing(room=SONOS_ROOM, grace_seconds=5, force_refresh=False, cache_seconds=5):
+def sonos_is_playing(
+    room=SONOS_ROOM,
+    grace_seconds=5,
+    transition_hold_seconds=20,
+    force_refresh=False,
+    cache_seconds=5,
+):
     now = time.time()
     cached_zones = getattr(sonos_is_playing, "_last_zones", None)
     cached_ts = getattr(sonos_is_playing, "_last_zones_ts", 0)
@@ -163,9 +170,12 @@ def sonos_is_playing(room=SONOS_ROOM, grace_seconds=5, force_refresh=False, cach
     if not grp:
         return False
 
-    # is any member actually playing a track?
+    # Wake the display only on active PLAYING state.
+    # TRANSITIONING is used only as a short hold after recent real playback
+    # so track boundaries don't briefly blank the display.
     now = time.monotonic()
     playing = False
+    transitioning = False
     members = grp.get("members") if isinstance(grp, dict) else None
     if not isinstance(members, list):
         members = []
@@ -180,14 +190,20 @@ def sonos_is_playing(room=SONOS_ROOM, grace_seconds=5, force_refresh=False, cach
         if not isinstance(current_track, dict):
             current_track = {}
 
-        if st.get("playbackState") in ("PLAYING", "TRANSITIONING") \
-           and current_track.get("type") == "track" \
-           and current_track.get("title"):
+        state = st.get("playbackState")
+        has_track = current_track.get("type") == "track" and current_track.get("title")
+
+        if state == "PLAYING" and has_track:
             playing = True
             sonos_is_playing._last_true = now
             break
+        if state == "TRANSITIONING" and has_track:
+            transitioning = True
 
-    return playing or (now - getattr(sonos_is_playing, "_last_true", 0)) < grace_seconds
+    last_true_age = now - getattr(sonos_is_playing, "_last_true", 0)
+    recent_true = last_true_age < grace_seconds
+    transition_hold = transitioning and last_true_age < transition_hold_seconds
+    return playing or recent_true or transition_hold
 
 
 def get_display_power_state(default=True):
@@ -397,7 +413,7 @@ def main():
                         display_on = True
             else:
                 # Nothing is playing on Sonos
-                if WEATHER_START_HOUR <= current_hour < WEATHER_END_HOUR:
+                if ENABLE_WEATHER_DASHBOARD and WEATHER_START_HOUR <= current_hour < WEATHER_END_HOUR:
                     # Within weather display hours; show weather dashboard
                     if not display_on or browser_url != 'weather':
                         logging.info("Displaying Weather Dashboard.")
