@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEVICE_CONFIG_FILE="$ROOT_DIR/.spainify-device.env"
+SONOS_ROOM_CACHE_FILE="$ROOT_DIR/.spainify-sonos-rooms.cache"
 DISCOVERY_SONOS_API_PID=""
 SPOTIFY_AUTH_HELPER_PID=""
 SPOTIFY_AUTH_TOKEN_FILE=""
@@ -318,15 +319,19 @@ load_available_sonos_rooms() {
   local tmp_json
   local room
   local attempt
+  local current_count=0
+  local max_attempts=15
+  local stable_rounds=0
+  local last_count=0
   local -A seen_rooms=()
 
   if ! command -v curl >/dev/null 2>&1; then
     return 1
   fi
 
-  # Poll multiple snapshots because Sonos discovery can be incomplete
-  # right after the local API starts.
-  for attempt in 1 2 3 4 5 6; do
+  # Poll until results stabilize; Sonos discovery can be incomplete
+  # for a few seconds right after API startup.
+  for ((attempt=1; attempt<=max_attempts; attempt++)); do
     tmp_json="$(mktemp)"
     if curl -fsS --max-time 3 "$sonos_base/zones" >"$tmp_json" 2>/dev/null; then
       while IFS= read -r room; do
@@ -337,10 +342,20 @@ load_available_sonos_rooms() {
     fi
     rm -f "$tmp_json"
 
-    # If we already have rooms, keep polling briefly to catch late joiners.
-    if [[ "$attempt" != "6" ]]; then
-      sleep 1
+    current_count="${#seen_rooms[@]}"
+    if (( current_count > 0 )); then
+      if (( current_count == last_count )); then
+        ((stable_rounds++))
+      else
+        stable_rounds=0
+      fi
+      last_count="$current_count"
+      if (( stable_rounds >= 2 )); then
+        break
+      fi
     fi
+
+    sleep 1
   done
 
   SONOS_ROOMS=()
@@ -401,13 +416,17 @@ def parse_rooms(payload):
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
 sock.settimeout(1.2)
-# Send multiple probes to reduce missed responders on busy Wi-Fi.
-for _ in range(3):
-    sock.sendto(MSEARCH, ("239.255.255.250", 1900))
-    time.sleep(0.2)
-deadline = time.time() + 6.0
+deadline = time.time() + 10.0
+next_probe = 0.0
 
 while time.time() < deadline:
+    now = time.time()
+    if now >= next_probe:
+        # Re-probe periodically to catch slower responders.
+        for _ in range(3):
+            sock.sendto(MSEARCH, ("239.255.255.250", 1900))
+            time.sleep(0.1)
+        next_probe = now + 2.0
     try:
         data, _ = sock.recvfrom(65535)
     except socket.timeout:
@@ -539,8 +558,10 @@ prompt_sonos_room() {
   local default_room="$1"
   local sonos_base="$2"
   local discovered_any=0
+  local cached_any=0
   local -a api_rooms=()
   local -a direct_rooms=()
+  local -a cached_rooms=()
   SONOS_ROOMS=()
 
   if load_available_sonos_rooms "$sonos_base"; then
@@ -556,14 +577,26 @@ prompt_sonos_room() {
     discovered_any=1
   fi
 
-  SONOS_ROOMS=("${api_rooms[@]}" "${direct_rooms[@]}")
+  if load_cached_sonos_rooms; then
+    cached_rooms=("${SONOS_ROOMS[@]}")
+    cached_any=1
+  fi
+
+  SONOS_ROOMS=("${api_rooms[@]}" "${direct_rooms[@]}" "${cached_rooms[@]}" "$default_room")
   set_sonos_rooms_unique_sorted
 
-  if (( discovered_any == 1 )) && choose_discovered_sonos_room "$default_room"; then
+  if (( discovered_any == 1 )); then
+    save_cached_sonos_rooms
+  fi
+
+  if (( ${#SONOS_ROOMS[@]} > 0 )) && choose_discovered_sonos_room "$default_room"; then
     return
   fi
 
-  if (( discovered_any == 0 )); then
+  if (( discovered_any == 0 && cached_any == 1 )); then
+    echo >&2
+    echo "Live discovery missed one or more rooms; showing cached room list as backup." >&2
+  elif (( discovered_any == 0 )); then
     echo >&2
     echo "Could not auto-discover Sonos rooms through local API or direct network scan. Enter room name manually." >&2
   fi
@@ -686,6 +719,35 @@ set_sonos_rooms_unique_sorted() {
   fi
 
   mapfile -t SONOS_ROOMS < <(printf '%s\n' "${unique[@]}" | sort)
+}
+
+load_cached_sonos_rooms() {
+  local room
+  if [[ ! -f "$SONOS_ROOM_CACHE_FILE" ]]; then
+    return 1
+  fi
+
+  SONOS_ROOMS=()
+  while IFS= read -r room; do
+    room="$(spainify_trim "$room")"
+    if [[ -n "$room" ]]; then
+      SONOS_ROOMS+=("$room")
+    fi
+  done < "$SONOS_ROOM_CACHE_FILE"
+
+  set_sonos_rooms_unique_sorted
+  (( ${#SONOS_ROOMS[@]} > 0 ))
+}
+
+save_cached_sonos_rooms() {
+  local tmp
+  if (( ${#SONOS_ROOMS[@]} == 0 )); then
+    return 0
+  fi
+
+  tmp="$(mktemp)"
+  printf '%s\n' "${SONOS_ROOMS[@]}" > "$tmp"
+  mv "$tmp" "$SONOS_ROOM_CACHE_FILE"
 }
 
 write_device_config() {
