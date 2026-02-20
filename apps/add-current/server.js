@@ -110,7 +110,7 @@ async function getZones() {
 }
 
 function isActive(zone) {
-  return zone.members.some(m => ["PLAYING", "TRANSITIONING"].includes(m.state?.playbackState));
+  return zone.members.some(m => m.state?.playbackState === "PLAYING");
 }
 
 function coordinatorOf(zone) {
@@ -465,6 +465,7 @@ async function getSpotifyCurrentlyPlayingTrack() {
   if (!r.ok) throw new Error(`Currently-playing failed: ${r.status} ${await r.text()}`);
 
   const j = await r.json();
+  if (!j?.is_playing) return null; // ignore paused sessions
   if (j.currently_playing_type !== "track") return null; // ignore podcasts, etc.
 
   const id = j?.item?.id;
