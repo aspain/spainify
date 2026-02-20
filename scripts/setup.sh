@@ -186,14 +186,17 @@ def parse_rooms(payload):
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
 sock.settimeout(1.2)
-sock.sendto(MSEARCH, ("239.255.255.250", 1900))
+# Send multiple probes to reduce missed responders on busy Wi-Fi.
+for _ in range(3):
+    sock.sendto(MSEARCH, ("239.255.255.250", 1900))
+    time.sleep(0.2)
 deadline = time.time() + 4.0
 
 while time.time() < deadline:
     try:
         data, _ = sock.recvfrom(65535)
     except socket.timeout:
-        break
+        continue
     text = data.decode("utf-8", "ignore")
     match = re.search(r"(?im)^location:\s*(\S+)\s*$", text)
     if match:
