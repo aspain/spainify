@@ -137,6 +137,120 @@ load_available_sonos_rooms() {
   (( ${#SONOS_ROOMS[@]} > 0 ))
 }
 
+load_available_sonos_rooms_direct() {
+  local discovered
+  discovered="$(
+    python3 - <<'PY'
+import re
+import socket
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+import xml.etree.ElementTree as ET
+
+MSEARCH = "\r\n".join([
+    "M-SEARCH * HTTP/1.1",
+    "HOST: 239.255.255.250:1900",
+    "MAN: \"ssdp:discover\"",
+    "MX: 2",
+    "ST: urn:schemas-upnp-org:device:ZonePlayer:1",
+    "",
+    "",
+]).encode("ascii", "ignore")
+
+locations = set()
+rooms = set()
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+sock.settimeout(1.2)
+sock.sendto(MSEARCH, ("239.255.255.250", 1900))
+deadline = time.time() + 4.0
+
+while time.time() < deadline:
+    try:
+        data, _ = sock.recvfrom(65535)
+    except socket.timeout:
+        break
+    text = data.decode("utf-8", "ignore")
+    match = re.search(r"(?im)^location:\s*(\S+)\s*$", text)
+    if match:
+        locations.add(match.group(1).strip())
+
+sock.close()
+
+for location in locations:
+    try:
+        parsed = urllib.parse.urlparse(location)
+        host = parsed.hostname
+        if not host:
+            continue
+        topology_url = f"http://{host}:1400/status/topology"
+        with urllib.request.urlopen(topology_url, timeout=3) as response:
+            payload = response.read()
+        root = ET.fromstring(payload)
+        for zp in root.findall(".//ZonePlayer"):
+            zone_name = (zp.attrib.get("ZoneName") or "").strip()
+            if zone_name:
+                rooms.add(zone_name)
+    except (urllib.error.URLError, TimeoutError, ET.ParseError, ValueError):
+        continue
+
+for room in sorted(rooms):
+    print(room)
+PY
+  )"
+
+  SONOS_ROOMS=()
+  while IFS= read -r room; do
+    room="$(spainify_trim "$room")"
+    if [[ -n "$room" ]]; then
+      SONOS_ROOMS+=("$room")
+    fi
+  done <<< "$discovered"
+
+  (( ${#SONOS_ROOMS[@]} > 0 ))
+}
+
+choose_discovered_sonos_room() {
+  local default_room="$1"
+  local i
+  local prompt_default=""
+  local selected
+  local choice
+
+  echo >&2
+  echo "Discovered Sonos rooms:" >&2
+  i=1
+  while (( i <= ${#SONOS_ROOMS[@]} )); do
+    echo "  $i) ${SONOS_ROOMS[$((i - 1))]}" >&2
+    if [[ "${SONOS_ROOMS[$((i - 1))]}" == "$default_room" ]]; then
+      prompt_default="$i"
+    fi
+    ((i++))
+  done
+  echo "  0) Enter room manually" >&2
+
+  if [[ -n "$prompt_default" ]]; then
+    read -r -p "Choose Sonos room number: [$prompt_default] " choice || true
+  else
+    read -r -p "Choose Sonos room number: [0] " choice || true
+    choice="${choice:-0}"
+  fi
+
+  if [[ -z "$choice" && -n "$prompt_default" ]]; then
+    choice="$prompt_default"
+  fi
+
+  if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 )) && (( choice <= ${#SONOS_ROOMS[@]} )); then
+    selected="${SONOS_ROOMS[$((choice - 1))]}"
+    printf '%s' "$selected"
+    return 0
+  fi
+
+  return 1
+}
+
 boot_temp_sonos_http_api() {
   local sonos_base="$1"
   local api_dir="$ROOT_DIR/apps/sonos-http-api"
@@ -184,73 +298,23 @@ boot_temp_sonos_http_api() {
 prompt_sonos_room() {
   local default_room="$1"
   local sonos_base="$2"
-  local i
-  local prompt_default=""
-  local selected
-  local choice
   SONOS_ROOMS=()
 
   if load_available_sonos_rooms "$sonos_base"; then
-    echo >&2
-    echo "Discovered Sonos rooms from $sonos_base:" >&2
-    i=1
-    while (( i <= ${#SONOS_ROOMS[@]} )); do
-      echo "  $i) ${SONOS_ROOMS[$((i - 1))]}" >&2
-      if [[ "${SONOS_ROOMS[$((i - 1))]}" == "$default_room" ]]; then
-        prompt_default="$i"
-      fi
-      ((i++))
-    done
-    echo "  0) Enter room manually" >&2
-
-    if [[ -n "$prompt_default" ]]; then
-      read -r -p "Choose Sonos room number: [$prompt_default] " choice || true
-    else
-      read -r -p "Choose Sonos room number: [0] " choice || true
-      choice="${choice:-0}"
-    fi
-
-    if [[ -z "$choice" && -n "$prompt_default" ]]; then
-      choice="$prompt_default"
-    fi
-
-    if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 )) && (( choice <= ${#SONOS_ROOMS[@]} )); then
-      selected="${SONOS_ROOMS[$((choice - 1))]}"
-      printf '%s' "$selected"
+    if choose_discovered_sonos_room "$default_room"; then
       return
     fi
   elif boot_temp_sonos_http_api "$sonos_base" && load_available_sonos_rooms "$sonos_base"; then
-    echo >&2
-    echo "Discovered Sonos rooms from $sonos_base:" >&2
-    i=1
-    while (( i <= ${#SONOS_ROOMS[@]} )); do
-      echo "  $i) ${SONOS_ROOMS[$((i - 1))]}" >&2
-      if [[ "${SONOS_ROOMS[$((i - 1))]}" == "$default_room" ]]; then
-        prompt_default="$i"
-      fi
-      ((i++))
-    done
-    echo "  0) Enter room manually" >&2
-
-    if [[ -n "$prompt_default" ]]; then
-      read -r -p "Choose Sonos room number: [$prompt_default] " choice || true
-    else
-      read -r -p "Choose Sonos room number: [0] " choice || true
-      choice="${choice:-0}"
+    if choose_discovered_sonos_room "$default_room"; then
+      return
     fi
-
-    if [[ -z "$choice" && -n "$prompt_default" ]]; then
-      choice="$prompt_default"
-    fi
-
-    if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 )) && (( choice <= ${#SONOS_ROOMS[@]} )); then
-      selected="${SONOS_ROOMS[$((choice - 1))]}"
-      printf '%s' "$selected"
+  elif load_available_sonos_rooms_direct; then
+    if choose_discovered_sonos_room "$default_room"; then
       return
     fi
   else
     echo >&2
-    echo "Could not auto-discover Sonos rooms. Enter room name manually." >&2
+    echo "Could not auto-discover Sonos rooms through local API or direct network scan. Enter room name manually." >&2
   fi
 
   prompt_required_text "Enter Sonos room name" "$default_room"
