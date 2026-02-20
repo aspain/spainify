@@ -527,7 +527,12 @@ boot_temp_sonos_http_api() {
 
   if [[ ! -d "$api_dir/node_modules" ]]; then
     echo "Installing Sonos API dependencies for room discovery..." >&2
-    (cd "$api_dir" && npm install --no-audit --no-fund >/dev/null)
+    (cd "$api_dir" && npm install --no-audit --no-fund --loglevel=error >/dev/null)
+  fi
+
+  mkdir -p "$api_dir/presets"
+  if [[ ! -f "$api_dir/settings.json" ]]; then
+    printf '{}\n' > "$api_dir/settings.json"
   fi
 
   (

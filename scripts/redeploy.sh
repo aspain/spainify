@@ -32,6 +32,17 @@ render_and_install_unit() {
   rm -f "$tmp"
 }
 
+ensure_sonos_http_api_layout() {
+  local api_dir="$ROOT_DIR/apps/sonos-http-api"
+  local presets_dir="$api_dir/presets"
+  local settings_file="$api_dir/settings.json"
+
+  mkdir -p "$presets_dir"
+  if [[ ! -f "$settings_file" ]]; then
+    printf '{}\n' > "$settings_file"
+  fi
+}
+
 set_service_flags_from_config() {
   local mode="$1"
   local key
@@ -102,19 +113,20 @@ echo
 echo "==> Installing Node dependencies..."
 if service_enabled ENABLE_ADD_CURRENT; then
   echo "----> npm install in apps/add-current"
-  (cd apps/add-current && npm install --no-audit --no-fund)
+  (cd apps/add-current && npm install --no-audit --no-fund --loglevel=error)
 fi
 if service_enabled ENABLE_WEATHER_DASHBOARD; then
   echo "----> npm install in apps/weather-dashboard"
-  (cd apps/weather-dashboard && npm install --legacy-peer-deps --no-audit --no-fund)
+  (cd apps/weather-dashboard && npm install --legacy-peer-deps --no-audit --no-fund --loglevel=error)
 fi
 if service_enabled ENABLE_SONIFY_SERVE; then
   echo "----> npm install in apps/sonify"
-  (cd apps/sonify && npm install --no-audit --no-fund)
+  (cd apps/sonify && npm install --no-audit --no-fund --loglevel=error)
 fi
 if service_enabled ENABLE_SONOS_HTTP_API; then
+  ensure_sonos_http_api_layout
   echo "----> npm install in apps/sonos-http-api"
-  (cd apps/sonos-http-api && npm install --no-audit --no-fund)
+  (cd apps/sonos-http-api && npm install --no-audit --no-fund --loglevel=error)
 fi
 
 echo
