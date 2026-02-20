@@ -171,7 +171,7 @@ PORT=3030
 # Duplicate check scope:
 # - number => check only last N playlist entries (faster first sync)
 # - all    => check full playlist (slower first sync, then cached)
-DE_DUPE_WINDOW=750
+DE_DUPE_WINDOW=all
 ```
 
 ---

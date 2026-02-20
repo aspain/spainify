@@ -298,40 +298,6 @@ normalize_spotify_playlist_id() {
   printf '%s' "$input"
 }
 
-is_all_playlist_dedupe_value() {
-  local raw
-  raw="$(spainify_to_lower "$(spainify_trim "${1:-}")")"
-  case "$raw" in
-    all|full|entire|none|0) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
-sanitize_dedupe_window_value() {
-  local raw
-  local fallback="${2:-750}"
-  local trimmed
-  trimmed="$(spainify_trim "${1:-}")"
-  raw="$(spainify_to_lower "$trimmed")"
-
-  if [[ -z "$trimmed" ]]; then
-    printf '%s' "$fallback"
-    return
-  fi
-
-  if is_all_playlist_dedupe_value "$trimmed"; then
-    printf 'all'
-    return
-  fi
-
-  if [[ "$raw" =~ ^[0-9]+$ ]] && (( raw >= 1 )); then
-    printf '%s' "$raw"
-    return
-  fi
-
-  printf '%s' "$fallback"
-}
-
 load_available_sonos_rooms() {
   local sonos_base="$1"
   local tmp_json
@@ -1013,20 +979,11 @@ if [[ "$ENABLE_ADD_CURRENT" == "1" ]]; then
   if [[ -z "$ADD_CURRENT_SONOS_HTTP_BASE" ]]; then
     ADD_CURRENT_SONOS_HTTP_BASE="http://127.0.0.1:5005"
   fi
-  if [[ -z "$ADD_CURRENT_PREFERRED_ROOM" ]]; then
-    ADD_CURRENT_PREFERRED_ROOM="$SONOS_ROOM_VALUE"
-  fi
+  # Keep add-current aligned with the room chosen during setup.
+  ADD_CURRENT_PREFERRED_ROOM="$SONOS_ROOM_VALUE"
 
-  dedupe_all_default="0"
-  if is_all_playlist_dedupe_value "$ADD_CURRENT_DEDUPE_WINDOW"; then
-    dedupe_all_default="1"
-  fi
-  dedupe_all_playlist="$(prompt_yes_no "Check entire playlist for duplicates?" "$dedupe_all_default")"
-  if [[ "$dedupe_all_playlist" == "1" ]]; then
-    ADD_CURRENT_DEDUPE_WINDOW="all"
-  else
-    ADD_CURRENT_DEDUPE_WINDOW="$(sanitize_dedupe_window_value "$ADD_CURRENT_DEDUPE_WINDOW" "750")"
-  fi
+  # Use full-playlist de-dupe by default for deterministic behavior.
+  ADD_CURRENT_DEDUPE_WINDOW="all"
 
   if [[ -z "$ADD_CURRENT_CLIENT_ID" || -z "$ADD_CURRENT_CLIENT_SECRET" || -z "$ADD_CURRENT_REFRESH_TOKEN" ]]; then
     echo "Warning: add-current is enabled but Spotify credentials are incomplete."
