@@ -164,7 +164,7 @@ ensure_setup_prerequisites() {
 
   if [[ "$ENABLE_SPOTIFY_DISPLAY" == "1" ]]; then
     required_packages+=(python3-venv)
-    optional_packages+=(unclutter wlr-randr)
+    optional_packages+=(unclutter wlr-randr x11-xserver-utils)
   fi
 
   install_apt_packages required "${required_packages[@]}" || required_ok="0"

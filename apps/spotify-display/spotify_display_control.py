@@ -39,6 +39,7 @@ def _env_bool(name, default=False):
 HIDE_CURSOR_WHILE_DISPLAYING = _env_bool("HIDE_CURSOR_WHILE_DISPLAYING", True)
 DEFAULT_CURSOR_IDLE_SECONDS = 0.1
 ENABLE_WEATHER_DASHBOARD = _env_bool("ENABLE_WEATHER_DASHBOARD", True)
+DISPLAY_OUTPUT_NAME = os.getenv("DISPLAY_OUTPUT_NAME", "HDMI-A-1")
 
 
 def resolve_chromium_command():
@@ -223,6 +224,8 @@ def sonos_is_playing(
 
 
 def get_display_power_state(default=True):
+    if shutil.which("vcgencmd") is None:
+        return default
     try:
         result = subprocess.run(
             ["vcgencmd", "display_power"],
@@ -246,14 +249,127 @@ def get_display_power_state(default=True):
         logging.exception("Failed to read display power state.")
     return default
 
+def _wayland_env_candidates():
+    candidates = []
+    configured_runtime = os.getenv("XDG_RUNTIME_DIR", "")
+    configured_display = os.getenv("WAYLAND_DISPLAY", "")
+    if configured_runtime and configured_display:
+        candidates.append(
+            {"XDG_RUNTIME_DIR": configured_runtime, "WAYLAND_DISPLAY": configured_display}
+        )
+
+    runtime_dir = f"/run/user/{os.getuid()}"
+    if os.path.isdir(runtime_dir):
+        for wayland_display in ("wayland-0", "wayland-1"):
+            if os.path.exists(os.path.join(runtime_dir, wayland_display)):
+                candidate = {
+                    "XDG_RUNTIME_DIR": runtime_dir,
+                    "WAYLAND_DISPLAY": wayland_display,
+                }
+                if candidate not in candidates:
+                    candidates.append(candidate)
+
+    return candidates
+
+
+def _run_command(args, env_updates=None):
+    env = os.environ.copy()
+    if env_updates:
+        env.update(env_updates)
+
+    return subprocess.run(
+        args,
+        capture_output=True,
+        text=True,
+        timeout=4,
+        check=False,
+        env=env,
+    )
+
+
+def _apply_display_power_fallback(target_on):
+    target_text = "on" if target_on else "off"
+
+    if shutil.which("wlr-randr"):
+        for env_updates in _wayland_env_candidates():
+            cmd = [
+                "wlr-randr",
+                "--output",
+                DISPLAY_OUTPUT_NAME,
+                "--on" if target_on else "--off",
+            ]
+            try:
+                result = _run_command(cmd, env_updates=env_updates)
+                if result.returncode == 0:
+                    logging.info(
+                        "Display fallback via wlr-randr %s succeeded (%s).",
+                        target_text,
+                        env_updates.get("WAYLAND_DISPLAY", "unknown"),
+                    )
+                    return True
+            except Exception:
+                logging.exception("Display fallback via wlr-randr failed.")
+
+    if shutil.which("xset"):
+        display = os.getenv("DISPLAY", ":0")
+        cmd = ["xset", "-display", display, "dpms", "force", target_text]
+        try:
+            result = _run_command(cmd)
+            if result.returncode == 0:
+                logging.info("Display fallback via xset %s succeeded.", target_text)
+                return True
+        except Exception:
+            logging.exception("Display fallback via xset failed.")
+
+    return False
+
+
+def set_display_power(target_on):
+    target_value = "1" if target_on else "0"
+    target_name = "ON" if target_on else "OFF"
+    fallback_used = False
+
+    if shutil.which("vcgencmd"):
+        try:
+            result = _run_command(["vcgencmd", "display_power", target_value])
+            logging.info("display_power set %s command exit=%s", target_name, result.returncode)
+        except Exception:
+            logging.exception("Failed to invoke vcgencmd display_power %s.", target_value)
+    else:
+        logging.warning("vcgencmd is unavailable; using fallback display control.")
+
+    time.sleep(0.3)
+    current_state = get_display_power_state(default=target_on)
+    if current_state == target_on:
+        return current_state
+
+    logging.warning(
+        "Display state mismatch after vcgencmd (wanted %s, current=%s). Trying fallback.",
+        target_name,
+        "ON" if current_state else "OFF",
+    )
+    fallback_used = _apply_display_power_fallback(target_on)
+    if fallback_used:
+        time.sleep(0.3)
+        current_state = get_display_power_state(default=target_on)
+
+    if current_state != target_on and fallback_used:
+        logging.warning(
+            "Fallback command completed, but vcgencmd still reports display %s.",
+            "ON" if current_state else "OFF",
+        )
+    elif current_state == target_on and fallback_used:
+        logging.info("Display state corrected via fallback to %s.", target_name)
+
+    return current_state
+
 
 def turn_display_on():
-    result = os.system('vcgencmd display_power 1')
-    logging.info(f"Display turned ON, command result: {result}")
+    return set_display_power(True)
+
 
 def turn_display_off():
-    result = os.system('vcgencmd display_power 0')
-    logging.info(f"Display turned OFF, command result: {result}")
+    return set_display_power(False)
 
 def terminate_process_group(process, process_name):
     """Terminate a process group with TERM then KILL fallback."""
@@ -434,8 +550,7 @@ def main():
                         chromium_process = None
                         browser_url = None
                     if not display_on:
-                        turn_display_on()
-                        display_on = True
+                        display_on = turn_display_on()
             else:
                 # Nothing is playing on Sonos
                 if ENABLE_WEATHER_DASHBOARD and WEATHER_START_HOUR <= current_hour < WEATHER_END_HOUR:
@@ -457,14 +572,12 @@ def main():
                             chromium_process = None
                             browser_url = None
                         if not display_on:
-                            turn_display_on()
-                            display_on = True
+                            display_on = turn_display_on()
                 else:
                     # Outside weather hours; ensure display is off
                     if display_on:
                         logging.info("No content to display; turning off display.")
-                        turn_display_off()
-                        display_on = False
+                        display_on = turn_display_off()
                     if browser_url is not None:
                         logging.info("Closing browser.")
                         kill_chromium(chromium_process)
