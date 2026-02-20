@@ -81,9 +81,9 @@ app.get("/callback", async (req, res) => {
 
   res.send(`
     <h3>Success!</h3>
-    <p><strong>Refresh token:</strong></p>
-    <pre style="white-space:pre-wrap">${refresh}</pre>
-    <p>Copy this into your <code>.env</code> as <code>SPOTIFY_REFRESH_TOKEN</code>, then you can stop this auth server.</p>
+    <p>Spotify authorization completed.</p>
+    <p>Your setup session captures the refresh token automatically.</p>
+    <p>You can close this page and return to setup.</p>
   `);
 
   console.log("\nREFRESH TOKEN:\n", refresh, "\n");
