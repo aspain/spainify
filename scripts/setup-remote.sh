@@ -114,7 +114,8 @@ trap cleanup EXIT INT TERM
 if [[ -n "$OPEN_CMD" ]]; then
   (
     for ((i=0; i<900; i++)); do
-      if curl -fsS --max-time 1 "http://127.0.0.1:${FORWARD_PORT}/healthz" >/dev/null 2>&1; then
+      if ssh -q -o BatchMode=yes -o ConnectTimeout=2 "$REMOTE_TARGET" \
+        "curl -fsS --max-time 1 http://127.0.0.1:8888/healthz >/dev/null" >/dev/null 2>&1; then
         "$OPEN_CMD" "http://127.0.0.1:${FORWARD_PORT}/login" >/dev/null 2>&1 || true
         exit 0
       fi
