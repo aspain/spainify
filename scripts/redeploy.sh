@@ -43,6 +43,31 @@ ensure_sonos_http_api_layout() {
   fi
 }
 
+run_quiet_build() {
+  local label="$1"
+  local dir="$2"
+  local log_file
+
+  log_file="$(mktemp -t "spainify-build-${label}.XXXXXX.log")"
+  echo "----> npm run build ($label)"
+
+  if (
+    cd "$dir" && \
+    BROWSERSLIST_IGNORE_OLD_DATA=1 \
+    SASS_SILENCE_DEPRECATIONS=legacy-js-api,import \
+    npm run build
+  ) >"$log_file" 2>&1; then
+    rm -f "$log_file"
+    echo "----> $label build complete"
+    return 0
+  fi
+
+  echo "----> $label build failed. Full log: $log_file"
+  echo "----> Last 120 lines:"
+  tail -n 120 "$log_file" || true
+  return 1
+}
+
 set_service_flags_from_config() {
   local mode="$1"
   local key
@@ -162,15 +187,13 @@ fi
 echo
 echo "==> Building frontend assets..."
 if service_enabled ENABLE_WEATHER_DASHBOARD; then
-  echo "----> npm run build (weather-dashboard)"
-  (cd apps/weather-dashboard && npm run build)
+  run_quiet_build "weather-dashboard" "apps/weather-dashboard"
 else
   echo "----> skipping weather-dashboard build (service disabled)"
 fi
 
 if service_enabled ENABLE_SONIFY_SERVE; then
-  echo "----> npm run build (sonify)"
-  (cd apps/sonify && npm run build)
+  run_quiet_build "sonify" "apps/sonify"
 else
   echo "----> skipping sonify build (service disabled)"
 fi

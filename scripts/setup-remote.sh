@@ -112,6 +112,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 if [[ -n "$OPEN_CMD" ]]; then
+  echo "==> Browser auto-open enabled for Spotify login (local port ${FORWARD_PORT})."
   (
     for ((i=0; i<900; i++)); do
       if ssh -q -o BatchMode=yes -o ConnectTimeout=2 "$REMOTE_TARGET" \
@@ -161,5 +162,12 @@ EOF_REMOTE
 
 remote_script_q="$(printf '%q' "$remote_script")"
 
+echo "==> Running setup on ${REMOTE_TARGET}..."
 ssh -tt -q -o LogLevel=ERROR -L "${FORWARD_PORT}:127.0.0.1:8888" "$REMOTE_TARGET" \
   "BRANCH=$branch_q REPO_URL=$repo_q FRESH=$fresh_q REMOTE_PATH_OVERRIDE=$path_q bash -lc $remote_script_q"
+
+echo "==> Finalizing setup (closing local tunnel and helper processes)..."
+cleanup
+WATCHER_PID=""
+trap - EXIT INT TERM
+echo "==> Remote setup complete."
