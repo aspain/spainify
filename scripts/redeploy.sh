@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Always run from repo root
 cd "$(dirname "$0")/.."
 ROOT_DIR="$(pwd)"
 SPAINIFY_USER="${SUDO_USER:-${USER:-$(id -un)}}"
+DEVICE_CONFIG_FILE="$ROOT_DIR/.spainify-device.env"
+
+# shellcheck disable=SC1091
+source "$ROOT_DIR/scripts/lib/device_config.sh"
 
 escape_sed_replacement() {
   printf '%s' "$1" | sed -e 's/[\/&|]/\\&/g'
@@ -15,6 +18,7 @@ render_and_install_unit() {
   local dst="$2"
   local escaped_root
   local escaped_user
+
   escaped_root="$(escape_sed_replacement "$ROOT_DIR")"
   escaped_user="$(escape_sed_replacement "$SPAINIFY_USER")"
 
@@ -28,72 +32,174 @@ render_and_install_unit() {
   rm -f "$tmp"
 }
 
-echo "==> Installing Node dependencies..."
-for dir in \
-  apps/add-current \
-  apps/weather-dashboard \
-  apps/sonify \
-  apps/sonos-http-api
-do
-  if [ -f "$dir/package.json" ]; then
-    echo "----> npm install in $dir"
-    case "$(basename "$dir")" in
-      weather-dashboard)
-        (cd "$dir" && npm install --legacy-peer-deps --no-audit --no-fund)
-        ;;
-      *)
-        (cd "$dir" && npm install --no-audit --no-fund)
-        ;;
-    esac
-  else
-    echo "----> skipping $dir (no package.json)"
+ensure_sonos_http_api_layout() {
+  local api_dir="$ROOT_DIR/apps/sonos-http-api"
+  local presets_dir="$api_dir/presets"
+  local settings_file="$api_dir/settings.json"
+
+  mkdir -p "$presets_dir"
+  if [[ ! -f "$settings_file" ]]; then
+    printf '{}\n' > "$settings_file"
   fi
-done
+}
+
+run_quiet_build() {
+  local label="$1"
+  local dir="$2"
+  local log_file
+
+  log_file="$(mktemp -t "spainify-build-${label}.XXXXXX.log")"
+  echo "----> npm run build ($label)"
+
+  if (
+    cd "$dir" && \
+    BROWSERSLIST_IGNORE_OLD_DATA=1 \
+    SASS_SILENCE_DEPRECATIONS=legacy-js-api,import \
+    npm run build
+  ) >"$log_file" 2>&1; then
+    rm -f "$log_file"
+    echo "----> $label build complete"
+    return 0
+  fi
+
+  echo "----> $label build failed. Full log: $log_file"
+  echo "----> Last 120 lines:"
+  tail -n 120 "$log_file" || true
+  return 1
+}
+
+set_service_flags_from_config() {
+  local mode="$1"
+  local key
+  local normalized
+
+  if [[ "$mode" == "legacy-full" ]]; then
+    for key in "${SPAINIFY_SERVICE_KEYS[@]}"; do
+      eval "$key=1"
+    done
+    return
+  fi
+
+  for key in "${SPAINIFY_SERVICE_KEYS[@]}"; do
+    normalized="$(spainify_normalize_bool "${!key:-}" "$(spainify_service_default "$key")")"
+    printf -v "$key" '%s' "$normalized"
+  done
+}
+
+service_enabled() {
+  local key="$1"
+  [[ "${!key:-0}" == "1" ]]
+}
+
+reconcile_service() {
+  local key="$1"
+  local unit
+  unit="$(spainify_service_unit "$key")"
+
+  if service_enabled "$key"; then
+    echo "----> enabling + restarting $unit"
+    sudo systemctl enable "$unit"
+    sudo systemctl restart "$unit"
+  else
+    echo "----> stopping + disabling $unit"
+    sudo systemctl stop "$unit" || true
+    sudo systemctl disable "$unit" || true
+  fi
+}
+
+MODE="legacy-full"
+if [[ -f "$DEVICE_CONFIG_FILE" ]]; then
+  MODE="config-driven"
+  # shellcheck disable=SC1090
+  source "$DEVICE_CONFIG_FILE"
+fi
+
+set_service_flags_from_config "$MODE"
+
+dependency_notes_file="$(mktemp)"
+spainify_apply_service_dependencies >"$dependency_notes_file" || true
+dependency_notes="$(cat "$dependency_notes_file")"
+rm -f "$dependency_notes_file"
+
+if [[ "$MODE" == "legacy-full" ]]; then
+  echo "==> No .spainify-device.env found; using legacy full redeploy mode"
+else
+  echo "==> Using device config: $DEVICE_CONFIG_FILE"
+fi
+
+if [[ -n "$dependency_notes" ]]; then
+  echo "==> Dependency adjustments:"
+  while IFS= read -r note; do
+    [[ -n "$note" ]] && echo "  - $note"
+  done <<< "$dependency_notes"
+fi
 
 echo
-echo "==> Installing Python dependencies for Spotify display (backend/venv)..."
-REQ_FILE=apps/spotify-display/requirements.txt
-VENV_DIR=backend/venv
+echo "==> Installing Node dependencies..."
+if service_enabled ENABLE_ADD_CURRENT; then
+  echo "----> npm install in apps/add-current"
+  (cd apps/add-current && npm install --no-audit --no-fund --loglevel=error)
+fi
+if service_enabled ENABLE_WEATHER_DASHBOARD; then
+  echo "----> npm install in apps/weather-dashboard"
+  (cd apps/weather-dashboard && npm install --legacy-peer-deps --no-audit --no-fund --loglevel=error)
+fi
+if service_enabled ENABLE_SONIFY_SERVE; then
+  echo "----> npm install in apps/sonify"
+  (cd apps/sonify && npm install --no-audit --no-fund --loglevel=error)
+fi
+if service_enabled ENABLE_SONOS_HTTP_API; then
+  ensure_sonos_http_api_layout
+  echo "----> npm install in apps/sonos-http-api"
+  (cd apps/sonos-http-api && npm install --no-audit --no-fund --loglevel=error)
+fi
 
-if [ -f "$REQ_FILE" ]; then
-  needs_new_venv=false
-  if [ ! -x "$VENV_DIR/bin/python" ] || [ ! -x "$VENV_DIR/bin/pip" ]; then
-    needs_new_venv=true
-  elif ! "$VENV_DIR/bin/pip" --version >/dev/null 2>&1; then
-    echo "----> existing venv pip is not runnable; recreating $VENV_DIR"
-    needs_new_venv=true
-  fi
+echo
+if service_enabled ENABLE_SPOTIFY_DISPLAY; then
+  echo "==> Installing Python dependencies for Spotify display (backend/venv)..."
+  REQ_FILE=apps/spotify-display/requirements.txt
+  VENV_DIR=backend/venv
 
-  if [ "$needs_new_venv" = true ]; then
-    rm -rf "$VENV_DIR"
-    echo "----> creating venv at $VENV_DIR"
-    python3 -m venv "$VENV_DIR"
+  if [[ -f "$REQ_FILE" ]]; then
+    needs_new_venv=false
+    if [[ ! -x "$VENV_DIR/bin/python" || ! -x "$VENV_DIR/bin/pip" ]]; then
+      needs_new_venv=true
+    elif ! "$VENV_DIR/bin/pip" --version >/dev/null 2>&1; then
+      echo "----> existing venv pip is not runnable; recreating $VENV_DIR"
+      needs_new_venv=true
+    fi
+
+    if [[ "$needs_new_venv" == true ]]; then
+      rm -rf "$VENV_DIR"
+      echo "----> creating venv at $VENV_DIR"
+      python3 -m venv "$VENV_DIR"
+    fi
+
+    echo "----> installing requirements from $REQ_FILE"
+    "$VENV_DIR/bin/pip" install --disable-pip-version-check -r "$REQ_FILE"
+  else
+    echo "----> no $REQ_FILE found; skipping Python deps"
   fi
-  echo "----> installing requirements from $REQ_FILE"
-  "$VENV_DIR/bin/pip" install --disable-pip-version-check -r "$REQ_FILE"
 else
-  echo "----> no $REQ_FILE found; skipping Python deps"
+  echo "==> Spotify display disabled; skipping Python dependency step."
 fi
 
 echo
 echo "==> Building frontend assets..."
-
-if [ -d apps/weather-dashboard ] && [ -f apps/weather-dashboard/package.json ]; then
-  echo "----> npm run build (weather-dashboard)"
-  (cd apps/weather-dashboard && npm run build)
+if service_enabled ENABLE_WEATHER_DASHBOARD; then
+  run_quiet_build "weather-dashboard" "apps/weather-dashboard"
 else
-  echo "----> skipping weather-dashboard (missing dir or package.json)"
+  echo "----> skipping weather-dashboard build (service disabled)"
 fi
 
-if [ -d apps/sonify ] && [ -f apps/sonify/package.json ]; then
-  echo "----> npm run build (sonify)"
-  (cd apps/sonify && npm run build)
+if service_enabled ENABLE_SONIFY_SERVE; then
+  run_quiet_build "sonify" "apps/sonify"
 else
-  echo "----> skipping sonify (missing dir or package.json)"
+  echo "----> skipping sonify build (service disabled)"
 fi
 
 echo
-echo "==> Updating systemd unit files from repo and restarting services..."
+echo "==> Updating systemd unit files from repo..."
 render_and_install_unit systemd/add-current.service        /etc/systemd/system/add-current.service
 render_and_install_unit systemd/spotify_display.service    /etc/systemd/system/spotify_display.service
 render_and_install_unit systemd/weather-dashboard.service  /etc/systemd/system/weather-dashboard.service
@@ -102,12 +208,13 @@ render_and_install_unit systemd/sonify-serve.service       /etc/systemd/system/s
 
 sudo systemctl daemon-reload
 
-sudo systemctl restart \
-  add-current.service \
-  spotify_display.service \
-  weather-dashboard.service \
-  sonos-http-api.service \
-  sonify-serve.service
+echo
+echo "==> Reconciling service state"
+reconcile_service ENABLE_ADD_CURRENT
+reconcile_service ENABLE_SPOTIFY_DISPLAY
+reconcile_service ENABLE_WEATHER_DASHBOARD
+reconcile_service ENABLE_SONOS_HTTP_API
+reconcile_service ENABLE_SONIFY_SERVE
 
 echo
 echo "All done."

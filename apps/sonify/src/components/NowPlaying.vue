@@ -43,6 +43,7 @@ export default {
       titleNeedsExtended: false,
       artistsNeedExtended: false,
       boostMode: 'none',
+      tightTrackArtistGap: false,
       overflowCheckRaf: 0
     }
   },
@@ -105,6 +106,7 @@ export default {
       if (this.artistsNeedExtended) classes.push('now-playing--artists-extended')
       if (this.boostMode === 'soft') classes.push('now-playing--boost-soft')
       if (this.boostMode === 'strong') classes.push('now-playing--boost-strong')
+      if (this.tightTrackArtistGap) classes.push('now-playing--tight-title-artist-gap')
 
       return classes
     },
@@ -148,11 +150,34 @@ export default {
       }
     },
 
+    getRenderedLineCount(element) {
+      if (!element) return 0
+
+      const style = window.getComputedStyle(element)
+      const lineHeight = parseFloat(style.lineHeight)
+      if (!Number.isFinite(lineHeight) || lineHeight <= 0) return 0
+
+      const paddingTop = parseFloat(style.paddingTop) || 0
+      const paddingBottom = parseFloat(style.paddingBottom) || 0
+      const rectHeight = element.getBoundingClientRect().height
+      const contentHeight = Math.max(rectHeight - paddingTop - paddingBottom, 0)
+      if (contentHeight <= 0) return 0
+
+      return Math.max(Math.round(contentHeight / lineHeight), 1)
+    },
+
+    updateTrackArtistGapState(trackElement, artistsElement) {
+      const trackLines = this.getRenderedLineCount(trackElement)
+      const artistLines = this.getRenderedLineCount(artistsElement)
+      this.tightTrackArtistGap = trackLines === 3 || artistLines === 3
+    },
+
     async updateOverflowState() {
       if (!this.player.playing) {
         this.titleNeedsExtended = false
         this.artistsNeedExtended = false
         this.boostMode = 'none'
+        this.tightTrackArtistGap = false
         return
       }
 
@@ -172,6 +197,7 @@ export default {
 
       if (this.titleNeedsExtended || this.artistsNeedExtended) {
         this.boostMode = 'none'
+        this.updateTrackArtistGapState(trackElement, artistsElement)
         return
       }
 
@@ -180,6 +206,7 @@ export default {
       await this.$nextTick()
       const strongOverflow = this.getNowPlayingOverflow()
       if (!strongOverflow.track && !strongOverflow.artists) {
+        this.updateTrackArtistGapState(trackElement, artistsElement)
         return
       }
 
@@ -187,10 +214,13 @@ export default {
       await this.$nextTick()
       const softOverflow = this.getNowPlayingOverflow()
       if (!softOverflow.track && !softOverflow.artists) {
+        this.updateTrackArtistGapState(trackElement, artistsElement)
         return
       }
 
       this.boostMode = 'none'
+      await this.$nextTick()
+      this.updateTrackArtistGapState(trackElement, artistsElement)
     },
 
     updateColors(imageUrl) {
@@ -352,6 +382,7 @@ export default {
         this.titleNeedsExtended = false
         this.artistsNeedExtended = false
         this.boostMode = 'none'
+        this.tightTrackArtistGap = false
       }
       this.scheduleOverflowCheck()
     }
