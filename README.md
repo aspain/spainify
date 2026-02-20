@@ -37,8 +37,8 @@ cd spainify
 This is the main setup command. It connects to the Pi over SSH, runs the setup wizard, and runs redeploy.
 If `add-current` is enabled, it also handles Spotify auth through the tunneled login URL automatically.
 
-The now-playing display does not require Spotify auth.
-Spotify credentials are only needed if you enable `add-current`.
+Now-playing works without Spotify credentials.
+Spotify credentials are only required for add-to-playlist and optional metadata enrichment (via `add-current`).
 
 Optional: run setup directly on the Pi (for local desktop use):
 
