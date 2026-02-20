@@ -26,25 +26,7 @@ This project contains a set of locally hosted apps and services with features in
 
 ## First-Time Setup
 
-From your Pi:
-
-```bash
-git clone https://github.com/aspain/spainify.git
-cd spainify
-```
-
-The now-playing display does not require Spotify auth. Spotify credentials are only needed if you enable `add-current`.
-
-### 1. Run the setup wizard
-
-From the repo root:
-
-```bash
-cd ~/spainify
-./setup.sh
-```
-
-Single-command remote setup from your laptop (recommended for SSH users):
+Use this from your laptop/desktop terminal (recommended):
 
 ```bash
 git clone https://github.com/aspain/spainify.git
@@ -52,41 +34,26 @@ cd spainify
 ./scripts/setup-remote.sh <pi-user>@<pi-ip> --fresh
 ```
 
-This opens one SSH session with auth port-forwarding, runs full setup, and auto-opens Spotify login when ready.
+This is the main setup command. It connects to the Pi over SSH, runs the setup wizard, and runs redeploy.
+If `add-current` is enabled, it also handles Spotify auth through the tunneled login URL automatically.
 
-What `setup.sh` does:
+The now-playing display does not require Spotify auth.
+Spotify credentials are only needed if you enable `add-current`.
 
-1. Prompts you for each service/app (`custom` mode by default)
-2. Applies dependency guardrails (for example, `spotify_display` requires `sonify-serve` + `sonos-http-api`)
-3. Installs missing OS packages needed by your selected services (for example: `nodejs`, `npm`, `python3-venv`) and optional Pi utilities (`unclutter`, `wlr-randr`, SSH/VNC packages)
-4. Attempts Sonos room discovery (numbered selection) when Sonos API is reachable; otherwise falls back to manual room entry
-5. Writes local config/env files for this Pi:
-   - `.spainify-device.env`
-   - `apps/add-current/.env` (if enabled)
-   - `apps/spotify-display/.env` (if enabled)
-   - `apps/weather-dashboard/.env` (if enabled)
-   - `apps/sonify/.env.local` (if enabled)
-6. Runs `./scripts/redeploy.sh` (unless you skip at the final prompt)
-
-Re-running `./setup.sh` is safe and is the intended way to change this device's enabled services later.
-
-### 2. Optional: one-time Spotify auth (to get refresh token)
-
-If you enabled `add-current` and still need a refresh token:
+Optional: run setup directly on the Pi (for local desktop use):
 
 ```bash
-cd ~/spainify/apps/add-current
-node auth.js
+cd ~/spainify
+./setup.sh
 ```
 
-Then in a browser:
+`setup.sh` is the core setup wizard used by `setup-remote.sh`.
 
-1. Create a local tunnel from your laptop/desktop:
-   `ssh -N -L 8888:127.0.0.1:8888 <pi-user>@<pi-ip>`
-2. Open `http://127.0.0.1:8888/login`
-2. Approve Spotify permissions
-3. Copy the `refresh_token` shown
-4. Re-run `./setup.sh` and paste the token when prompted
+To change service choices later, just re-run setup:
+
+```bash
+./scripts/setup-remote.sh <pi-user>@<pi-ip>
+```
 
 ---
 
@@ -119,6 +86,7 @@ apps/
   weather-dashboard/
   sonify/
 scripts/
+  setup-remote.sh
   redeploy.sh
 systemd/
 setup.sh
@@ -228,15 +196,18 @@ sudo apt install unclutter
 
 ## Redeploy / Update Workflow
 
-For future updates you normally only need:
+For normal code updates on a configured Pi:
 
 ```bash
-cd ~/spainify
-git pull
-./scripts/redeploy.sh
+ssh <pi-user>@<pi-ip> 'cd ~/spainify && git pull --ff-only && ./scripts/redeploy.sh'
 ```
 
-For multi-Pi setups, run those commands on each Pi. Each Pi can share the same repo but keep different local service choices through its own `.spainify-device.env`.
+If you want to change enabled services/room/settings, run setup again instead of redeploy:
+
+```bash
+cd /path/to/spainify
+./scripts/setup-remote.sh <pi-user>@<pi-ip>
+```
 
 The `redeploy.sh` script:
 
