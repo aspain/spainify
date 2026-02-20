@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEVICE_CONFIG_FILE="$ROOT_DIR/.spainify-device.env"
 SONOS_ROOM_CACHE_FILE="$ROOT_DIR/.spainify-sonos-rooms.cache"
 DISCOVERY_SONOS_API_PID=""
+DISCOVERY_SONOS_TEMP_STARTED="0"
 SPOTIFY_AUTH_HELPER_PID=""
 SPOTIFY_AUTH_TOKEN_FILE=""
 APT_UPDATED="0"
@@ -14,7 +15,11 @@ source "$ROOT_DIR/scripts/lib/device_config.sh"
 
 cleanup_setup_helpers() {
   terminate_helper_pid "$DISCOVERY_SONOS_API_PID"
+  if [[ "$DISCOVERY_SONOS_TEMP_STARTED" == "1" ]] && command -v pkill >/dev/null 2>&1; then
+    pkill -f "$ROOT_DIR/apps/sonos-http-api/server.js" >/dev/null 2>&1 || true
+  fi
   DISCOVERY_SONOS_API_PID=""
+  DISCOVERY_SONOS_TEMP_STARTED="0"
   terminate_helper_pid "$SPOTIFY_AUTH_HELPER_PID"
   SPOTIFY_AUTH_HELPER_PID=""
   if [[ -n "$SPOTIFY_AUTH_TOKEN_FILE" && -f "$SPOTIFY_AUTH_TOKEN_FILE" ]]; then
@@ -525,8 +530,12 @@ boot_temp_sonos_http_api() {
     (cd "$api_dir" && npm install --no-audit --no-fund >/dev/null)
   fi
 
-  (cd "$api_dir" && node server.js >/tmp/spainify-setup-sonos-http-api.log 2>&1) &
+  (
+    cd "$api_dir"
+    exec node server.js >/tmp/spainify-setup-sonos-http-api.log 2>&1
+  ) &
   DISCOVERY_SONOS_API_PID="$!"
+  DISCOVERY_SONOS_TEMP_STARTED="1"
 
   for ((i=0; i<wait_seconds; i++)); do
     if curl -fsS --max-time 2 "$sonos_base/zones" >/dev/null 2>&1; then
