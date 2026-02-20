@@ -3,9 +3,19 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEVICE_CONFIG_FILE="$ROOT_DIR/.spainify-device.env"
+DISCOVERY_SONOS_API_PID=""
 
 # shellcheck disable=SC1091
 source "$ROOT_DIR/scripts/lib/device_config.sh"
+
+cleanup_setup_helpers() {
+  if [[ -n "$DISCOVERY_SONOS_API_PID" ]] && kill -0 "$DISCOVERY_SONOS_API_PID" >/dev/null 2>&1; then
+    kill "$DISCOVERY_SONOS_API_PID" >/dev/null 2>&1 || true
+    wait "$DISCOVERY_SONOS_API_PID" 2>/dev/null || true
+    DISCOVERY_SONOS_API_PID=""
+  fi
+}
+trap cleanup_setup_helpers EXIT INT TERM
 
 prompt_yes_no() {
   local question="$1"
@@ -106,6 +116,49 @@ load_available_sonos_rooms() {
   (( ${#SONOS_ROOMS[@]} > 0 ))
 }
 
+boot_temp_sonos_http_api() {
+  local sonos_base="$1"
+  local api_dir="$ROOT_DIR/apps/sonos-http-api"
+  local wait_seconds=15
+  local i
+
+  case "$sonos_base" in
+    http://127.0.0.1:5005|http://localhost:5005) ;;
+    *) return 1 ;;
+  esac
+
+  if ! command -v node >/dev/null 2>&1; then
+    return 1
+  fi
+
+  if [[ ! -f "$api_dir/server.js" || ! -f "$api_dir/package.json" ]]; then
+    return 1
+  fi
+
+  if ! curl -fsS --max-time 2 "$sonos_base/zones" >/dev/null 2>&1; then
+    echo >&2
+    echo "Starting local Sonos API temporarily so room discovery can run..." >&2
+  else
+    return 0
+  fi
+
+  if [[ ! -d "$api_dir/node_modules" ]]; then
+    (cd "$api_dir" && npm install --no-audit --no-fund >/dev/null)
+  fi
+
+  (cd "$api_dir" && node server.js >/tmp/spainify-setup-sonos-http-api.log 2>&1) &
+  DISCOVERY_SONOS_API_PID="$!"
+
+  for ((i=0; i<wait_seconds; i++)); do
+    if curl -fsS --max-time 2 "$sonos_base/zones" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+  done
+
+  return 1
+}
+
 prompt_sonos_room() {
   local default_room="$1"
   local sonos_base="$2"
@@ -144,9 +197,38 @@ prompt_sonos_room() {
       printf '%s' "$selected"
       return
     fi
+  elif boot_temp_sonos_http_api "$sonos_base" && load_available_sonos_rooms "$sonos_base"; then
+    echo >&2
+    echo "Discovered Sonos rooms from $sonos_base:" >&2
+    i=1
+    while (( i <= ${#SONOS_ROOMS[@]} )); do
+      echo "  $i) ${SONOS_ROOMS[$((i - 1))]}" >&2
+      if [[ "${SONOS_ROOMS[$((i - 1))]}" == "$default_room" ]]; then
+        prompt_default="$i"
+      fi
+      ((i++))
+    done
+    echo "  0) Enter room manually" >&2
+
+    if [[ -n "$prompt_default" ]]; then
+      read -r -p "Choose Sonos room number: [$prompt_default] " choice || true
+    else
+      read -r -p "Choose Sonos room number: [0] " choice || true
+      choice="${choice:-0}"
+    fi
+
+    if [[ -z "$choice" && -n "$prompt_default" ]]; then
+      choice="$prompt_default"
+    fi
+
+    if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 )) && (( choice <= ${#SONOS_ROOMS[@]} )); then
+      selected="${SONOS_ROOMS[$((choice - 1))]}"
+      printf '%s' "$selected"
+      return
+    fi
   else
     echo >&2
-    echo "Could not auto-discover Sonos rooms from $sonos_base; falling back to manual entry." >&2
+    echo "Could not auto-discover Sonos rooms. Enter room name manually." >&2
   fi
 
   prompt_required_text "Enter Sonos room name" "$default_room"
@@ -287,6 +369,7 @@ SONOS_ROOM_VALUE="$default_room"
 if [[ "$ENABLE_SPOTIFY_DISPLAY" == "1" || "$ENABLE_SONIFY_SERVE" == "1" || "$ENABLE_ADD_CURRENT" == "1" ]]; then
   SONOS_ROOM_VALUE="$(prompt_sonos_room "$default_room" "$default_sonos_http_base")"
 fi
+cleanup_setup_helpers
 
 HIDE_CURSOR_WHILE_DISPLAYING_VALUE="$(read_existing_or_default "$display_env_file" "HIDE_CURSOR_WHILE_DISPLAYING" "1")"
 HIDE_CURSOR_IDLE_SECONDS_VALUE="$(read_existing_or_default "$display_env_file" "HIDE_CURSOR_IDLE_SECONDS" "0.1")"
