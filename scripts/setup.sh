@@ -1073,8 +1073,14 @@ echo "Wrote: $DEVICE_CONFIG_FILE"
 run_now="$(prompt_yes_no "Run redeploy now?" "1")"
 if [[ "$run_now" == "1" ]]; then
   echo
+  echo "==> Running redeploy..."
   "$ROOT_DIR/scripts/redeploy.sh"
+  echo "==> Finalizing setup..."
+  echo "==> Setup complete."
 else
   echo
   echo "Run this when ready: ./scripts/redeploy.sh"
+  echo "==> Setup complete."
 fi
+
+exit 0
