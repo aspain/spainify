@@ -127,6 +127,21 @@ function zoneHasMusic(zone) {
   return isMusicLikeTrack(track);
 }
 
+function zoneSortKey(zone) {
+  const coordinatorName = String(coordinatorOf(zone)?.roomName || "").toLowerCase();
+  const members = Array.isArray(zone?.members) ? zone.members : [];
+  const memberNames = members
+    .map(m => String(m?.roomName || "").toLowerCase())
+    .filter(Boolean)
+    .sort()
+    .join("|");
+  return `${coordinatorName}::${memberNames}`;
+}
+
+function sortZonesDeterministically(zones) {
+  return [...zones].sort((a, b) => zoneSortKey(a).localeCompare(zoneSortKey(b)));
+}
+
 /**
  * Pick the best active zone:
  * 1) If a room is specified, return that active room (respecting mode filter)
@@ -134,10 +149,13 @@ function zoneHasMusic(zone) {
  * 3) Else, any zone that looks like music (not TV/line-in)
  * 4) Else, any active zone (last resort)
  *
+ * When multiple zones match the same priority, choose deterministically
+ * by coordinator/member room names (stable tie-breaker).
+ *
  * mode: "music" (default) ignores TV/line-in, "any" doesn’t filter.
  */
 function pickActiveZone(zones, preferredRoom, mode = "music") {
-  const active = zones.filter(isActive);
+  const active = sortZonesDeterministically(zones.filter(isActive));
   if (!active.length) return null;
 
   const filterByMode = zs => mode === "any" ? zs : zs.filter(zoneHasMusic);
@@ -531,7 +549,9 @@ app.get("/add-current-smart", async (req, res) => {
       const roomOverride = (req.query.room || "").toString();
       const mode = ((req.query.mode || "music").toString().toLowerCase() === "any") ? "any" : "music";
       const zones = await getZones();
-      zone  = pickActiveZone(zones, roomOverride || PREFERRED_ROOM, mode);
+      // Default behavior: choose best active zone globally.
+      // Optional ?room=... can force room preference per request.
+      zone  = pickActiveZone(zones, roomOverride || "", mode);
 
       if (!zone) return res.json({ added: false, reason: "Nothing playing (Spotify and Sonos empty)" });
 

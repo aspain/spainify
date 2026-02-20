@@ -979,8 +979,8 @@ if [[ "$ENABLE_ADD_CURRENT" == "1" ]]; then
   if [[ -z "$ADD_CURRENT_SONOS_HTTP_BASE" ]]; then
     ADD_CURRENT_SONOS_HTTP_BASE="http://127.0.0.1:5005"
   fi
-  # Keep add-current aligned with the room chosen during setup.
-  ADD_CURRENT_PREFERRED_ROOM="$SONOS_ROOM_VALUE"
+  # Keep existing preferred room if provided; default to blank.
+  ADD_CURRENT_PREFERRED_ROOM="$(spainify_trim "${ADD_CURRENT_PREFERRED_ROOM:-}")"
 
   # Use full-playlist de-dupe by default for deterministic behavior.
   ADD_CURRENT_DEDUPE_WINDOW="all"
