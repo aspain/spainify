@@ -112,7 +112,6 @@ Targeted mode supports:
 - `add-current` (playlist + track-details API)
 - `weather-dashboard`
 - `Now-playing Sonos zone`
-- `spotify_display` (now-playing display controller)
 
 In targeted mode, setup redeploys only the required service scope instead of running a full redeploy.
 
