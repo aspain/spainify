@@ -82,7 +82,7 @@ Setup writes all required config files for the device. In normal usage, you shou
 - `.spainify-device.env` — per-device service enablement profile used by `scripts/redeploy.sh`
 - `apps/add-current/.env` — Spotify/API settings for add-current (if enabled)
 - `apps/spotify-display/.env` — display room/cursor settings (if enabled)
-- `apps/weather-dashboard/.env` — weather settings (if enabled)
+- `apps/weather-dashboard/.env` — weather settings (API key, city, display start/end time)
 - `apps/sonify/.env.local` — sonify room + optional metadata endpoint (if enabled)
 
 To change settings, re-run setup instead of editing files by hand:

@@ -252,6 +252,78 @@ prompt_required_text() {
   done
 }
 
+parse_time_to_hhmm() {
+  local raw_input="$1"
+  local input
+  local hour
+  local minute
+  local suffix
+
+  input="$(spainify_trim "$raw_input")"
+  input="${input// /}"
+  input="${input,,}"
+  input="${input//./}"
+
+  if [[ -z "$input" ]]; then
+    return 1
+  fi
+
+  if [[ "$input" =~ ^([0-9]{1,2})(:([0-9]{1,2}))?(a|am|p|pm)?$ ]]; then
+    hour="${BASH_REMATCH[1]}"
+    minute="${BASH_REMATCH[3]:-0}"
+    suffix="${BASH_REMATCH[4]:-}"
+  else
+    return 1
+  fi
+
+  if (( 10#$minute > 59 )); then
+    return 1
+  fi
+
+  if [[ -n "$suffix" ]]; then
+    if (( 10#$hour < 1 || 10#$hour > 12 )); then
+      return 1
+    fi
+    if [[ "$suffix" == "a" || "$suffix" == "am" ]]; then
+      if (( 10#$hour == 12 )); then
+        hour=0
+      else
+        hour=$((10#$hour))
+      fi
+    else
+      if (( 10#$hour == 12 )); then
+        hour=12
+      else
+        hour=$((10#$hour + 12))
+      fi
+    fi
+  else
+    if (( 10#$hour > 23 )); then
+      return 1
+    fi
+    hour=$((10#$hour))
+  fi
+
+  printf '%02d:%02d' "$hour" "$((10#$minute))"
+}
+
+prompt_time_hhmm() {
+  local question="$1"
+  local default_value="$2"
+  local value
+  local parsed
+
+  while true; do
+    value="$(prompt_text "$question" "$default_value")"
+    parsed="$(parse_time_to_hhmm "$value" || true)"
+    if [[ -n "$parsed" ]]; then
+      printf '%s' "$parsed"
+      return
+    fi
+    echo "Invalid time. Examples: 8a, 8am, 8:00am, 20, 20:30."
+  done
+}
+
 escape_double_quotes() {
   local value="$1"
   value="${value//\\/\\\\}"
@@ -856,10 +928,14 @@ write_weather_env() {
   local file="$ROOT_DIR/apps/weather-dashboard/.env"
   local api_key="$1"
   local city="$2"
+  local display_start="$3"
+  local display_end="$4"
 
 cat >"$file" <<EOF_WEATHER
 REACT_APP_OPENWEATHER_API_KEY="$(escape_double_quotes "$api_key")"
 REACT_APP_CITY="$(escape_double_quotes "$city")"
+WEATHER_DISPLAY_START="$(escape_double_quotes "$display_start")"
+WEATHER_DISPLAY_END="$(escape_double_quotes "$display_end")"
 EOF_WEATHER
 }
 
@@ -1019,11 +1095,15 @@ fi
 
 WEATHER_API_KEY="$(read_existing_or_default "$weather_env_file" "REACT_APP_OPENWEATHER_API_KEY" "")"
 WEATHER_CITY="$(read_existing_or_default "$weather_env_file" "REACT_APP_CITY" "")"
+WEATHER_DISPLAY_START="$(read_existing_or_default "$weather_env_file" "WEATHER_DISPLAY_START" "07:00")"
+WEATHER_DISPLAY_END="$(read_existing_or_default "$weather_env_file" "WEATHER_DISPLAY_END" "09:00")"
 if [[ "$ENABLE_WEATHER_DASHBOARD" == "1" ]]; then
   echo
   echo "Configure weather dashboard values:"
   WEATHER_API_KEY="$(prompt_required_text "OpenWeather API key" "$WEATHER_API_KEY")"
   WEATHER_CITY="$(prompt_required_text "Weather city" "$WEATHER_CITY")"
+  WEATHER_DISPLAY_START="$(prompt_time_hhmm "Enter weather display start time (example: 7:00am)" "$WEATHER_DISPLAY_START")"
+  WEATHER_DISPLAY_END="$(prompt_time_hhmm "Enter weather display end time (example: 9:00am)" "$WEATHER_DISPLAY_END")"
 fi
 
 SONIFY_METADATA_BASE_EXISTING="$(read_existing_or_default "$sonify_env_local_file" "VUE_APP_ADD_CURRENT_BASE" "")"
@@ -1062,7 +1142,7 @@ if [[ "$ENABLE_SPOTIFY_DISPLAY" == "1" ]]; then
     "$HIDE_CURSOR_IDLE_SECONDS_VALUE"
 fi
 if [[ "$ENABLE_WEATHER_DASHBOARD" == "1" ]]; then
-  write_weather_env "$WEATHER_API_KEY" "$WEATHER_CITY"
+  write_weather_env "$WEATHER_API_KEY" "$WEATHER_CITY" "$WEATHER_DISPLAY_START" "$WEATHER_DISPLAY_END"
 fi
 if [[ "$ENABLE_SONIFY_SERVE" == "1" ]]; then
   write_sonify_env_local "$SONOS_ROOM_VALUE" "$SONIFY_METADATA_BASE"

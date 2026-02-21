@@ -25,9 +25,8 @@ NEEDS_SANITIZE_FILENAME = "needs_sanitize"
 SONIFY_URL = "http://localhost:5000"
 WEATHER_URL = "http://localhost:3000"
 
-# Weather display hours (7 AM to 9 AM)
-WEATHER_START_HOUR = 7
-WEATHER_END_HOUR = 9
+DEFAULT_WEATHER_START_MINUTES = 7 * 60
+DEFAULT_WEATHER_END_MINUTES = 9 * 60
 
 
 def _env_bool(name, default=False):
@@ -37,10 +36,93 @@ def _env_bool(name, default=False):
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _minutes_to_hhmm(minutes):
+    hour = minutes // 60
+    minute = minutes % 60
+    return f"{hour:02d}:{minute:02d}"
+
+
+def _parse_clock_time_to_minutes(value, default_minutes, env_name):
+    raw = (value or "").strip()
+    normalized = raw.lower().replace(" ", "").replace(".", "")
+    match = re.fullmatch(r"(\d{1,2})(?::(\d{1,2}))?(a|am|p|pm)?", normalized)
+    if not match:
+        logging.warning(
+            "Invalid %s=%r; using %s.",
+            env_name,
+            raw,
+            _minutes_to_hhmm(default_minutes),
+        )
+        return default_minutes
+
+    hour = int(match.group(1))
+    minute = int(match.group(2) or 0)
+    suffix = match.group(3) or ""
+    if minute > 59:
+        logging.warning(
+            "Invalid %s=%r; using %s.",
+            env_name,
+            raw,
+            _minutes_to_hhmm(default_minutes),
+        )
+        return default_minutes
+
+    if suffix:
+        if hour < 1 or hour > 12:
+            logging.warning(
+                "Invalid %s=%r; using %s.",
+                env_name,
+                raw,
+                _minutes_to_hhmm(default_minutes),
+            )
+            return default_minutes
+        if suffix in {"a", "am"}:
+            hour = 0 if hour == 12 else hour
+        else:
+            hour = 12 if hour == 12 else hour + 12
+    elif hour > 23:
+        logging.warning(
+            "Invalid %s=%r; using %s.",
+            env_name,
+            raw,
+            _minutes_to_hhmm(default_minutes),
+        )
+        return default_minutes
+
+    return hour * 60 + minute
+
+
+def _is_within_daily_window(now_minutes, start_minutes, end_minutes):
+    if start_minutes == end_minutes:
+        return False
+    if start_minutes < end_minutes:
+        return start_minutes <= now_minutes < end_minutes
+    return now_minutes >= start_minutes or now_minutes < end_minutes
+
+
 HIDE_CURSOR_WHILE_DISPLAYING = _env_bool("HIDE_CURSOR_WHILE_DISPLAYING", True)
 DEFAULT_CURSOR_IDLE_SECONDS = 0.1
 ENABLE_WEATHER_DASHBOARD = _env_bool("ENABLE_WEATHER_DASHBOARD", True)
 DISPLAY_OUTPUT_NAME = os.getenv("DISPLAY_OUTPUT_NAME", "HDMI-A-1")
+WEATHER_DISPLAY_START_MINUTES = _parse_clock_time_to_minutes(
+    os.getenv("WEATHER_DISPLAY_START", "07:00"),
+    DEFAULT_WEATHER_START_MINUTES,
+    "WEATHER_DISPLAY_START",
+)
+WEATHER_DISPLAY_END_MINUTES = _parse_clock_time_to_minutes(
+    os.getenv("WEATHER_DISPLAY_END", "09:00"),
+    DEFAULT_WEATHER_END_MINUTES,
+    "WEATHER_DISPLAY_END",
+)
+logging.info(
+    "Weather display window %s -> %s.",
+    _minutes_to_hhmm(WEATHER_DISPLAY_START_MINUTES),
+    _minutes_to_hhmm(WEATHER_DISPLAY_END_MINUTES),
+)
+if WEATHER_DISPLAY_START_MINUTES == WEATHER_DISPLAY_END_MINUTES:
+    logging.warning(
+        "Weather display start and end are the same; weather dashboard display window is disabled."
+    )
 
 
 def resolve_chromium_command():
@@ -596,7 +678,7 @@ def main():
     while running:
         try:
             now = datetime.datetime.now()
-            current_hour = now.hour
+            current_minutes = (now.hour * 60) + now.minute
             sonos_playing = sonos_is_playing()
 
             if sonos_playing != last_sonos_playing:
@@ -626,7 +708,11 @@ def main():
                         display_on = turn_display_on()
             else:
                 # Nothing is playing on Sonos
-                if ENABLE_WEATHER_DASHBOARD and WEATHER_START_HOUR <= current_hour < WEATHER_END_HOUR:
+                if ENABLE_WEATHER_DASHBOARD and _is_within_daily_window(
+                    current_minutes,
+                    WEATHER_DISPLAY_START_MINUTES,
+                    WEATHER_DISPLAY_END_MINUTES,
+                ):
                     # Within weather display hours; show weather dashboard
                     if not display_on or browser_url != 'weather':
                         logging.info("Displaying Weather Dashboard.")
