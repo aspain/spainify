@@ -95,6 +95,9 @@ To change service choices later, just re-run setup:
 
 ## iOS Shortcut: Add Current Track to Playlist
 
+This shortcut hits the local `media-actions-api` and adds the currently playing track to your configured Spotify playlist.
+It prefers Spotify playback when available and automatically falls back to Sonos playback when needed.
+
 - Import shortcut: [add-current shortcut](https://www.icloud.com/shortcuts/511ff5126be2452d8369935922f43e97)
 - In the first `Get Contents of` action, replace the host IP with your Pi IP and use `http://<pi-ip>:3030/media-actions-smart`.
 - `/media-actions-smart` checks Spotify current playback first.
