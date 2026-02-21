@@ -11,6 +11,7 @@
   --np-track-size: var(--np-track-size-base);
   --np-track-line-height: 1.02;
   --np-track-extra: clamp(10px, 2vh, 30px);
+  --np-track-descender-pad: clamp(2px, 0.35vh, 4px);
 
   --np-artists-size-base: clamp(2.15rem, calc(9.8vh + 0.9vw), 5.125rem);
   --np-artists-size-boost-soft: clamp(2.451rem, calc(11.172vh + 1.026vw), 5.8425rem);
@@ -18,6 +19,7 @@
   --np-artists-size: var(--np-artists-size-base);
   --np-artists-line-height: 1.02;
   --np-artists-extra: clamp(8px, 1.6vh, 20px);
+  --np-artists-descender-pad: clamp(2px, 0.3vh, 4px);
   --np-title-artist-gap: clamp(1rem, 7.5vh, 2.75rem);
   --np-title-artist-gap-tight: calc(var(--np-title-artist-gap) * 0.8);
 
@@ -74,11 +76,11 @@
     -webkit-line-clamp: 3;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-height: calc((var(--np-track-size) * var(--np-track-line-height) * 3) + var(--np-track-extra));
+    max-height: calc((var(--np-track-size) * var(--np-track-line-height) * 3) + var(--np-track-extra) + var(--np-track-descender-pad));
     word-wrap: break-word;
     overflow-wrap: anywhere;
-    margin: 0 0 var(--np-title-artist-gap) 0;
-    padding-bottom: 1px;
+    margin: 0 0 calc(var(--np-title-artist-gap) - var(--np-track-descender-pad)) 0;
+    padding-bottom: var(--np-track-descender-pad);
     box-sizing: border-box;
   }
 
@@ -92,12 +94,12 @@
     -webkit-line-clamp: 2;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-height: calc((var(--np-artists-size) * var(--np-artists-line-height) * 2) + var(--np-artists-extra));
+    max-height: calc((var(--np-artists-size) * var(--np-artists-line-height) * 2) + var(--np-artists-extra) + var(--np-artists-descender-pad));
     word-wrap: break-word;
     overflow-wrap: anywhere;
     margin: 0;
     padding-top: 1px;
-    padding-bottom: 5px;
+    padding-bottom: calc(5px + var(--np-artists-descender-pad));
     box-sizing: border-box;
   }
 
@@ -119,14 +121,14 @@
   &--title-extended {
     .now-playing__track {
       -webkit-line-clamp: 4;
-      max-height: calc((var(--np-track-size) * var(--np-track-line-height) * 4) + var(--np-track-extra));
+      max-height: calc((var(--np-track-size) * var(--np-track-line-height) * 4) + var(--np-track-extra) + var(--np-track-descender-pad));
     }
   }
 
   &--artists-extended {
     .now-playing__artists {
       -webkit-line-clamp: 3;
-      max-height: calc((var(--np-artists-size) * var(--np-artists-line-height) * 3) + var(--np-artists-extra));
+      max-height: calc((var(--np-artists-size) * var(--np-artists-line-height) * 3) + var(--np-artists-extra) + var(--np-artists-descender-pad));
     }
   }
 
