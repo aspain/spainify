@@ -45,10 +45,10 @@ Before running setup, gather API credentials:
 1. OpenWeather (weather-dashboard)
    - Create/sign in and generate an API key at https://home.openweathermap.org/api_keys
    - Paste that value into the `OpenWeather API key` setup prompt.
-   - For city/location input, use a specific OpenWeather query when names are duplicated:
-     - US: `City,StateCode,US` (example: `Springfield,IL,US`)
-     - Outside US: `City,CountryCode` (example: `London,GB`)
-   - If your city name is unique, a plain city name can work, but `City,StateCode,US` is more reliable.
+   - Setup then guides location input with three modes:
+     - US mode: enter city + 2-letter state code (saved as `City,ST,US`)
+     - International mode: enter city + 2-letter country code (saved as `City,CC`)
+     - Advanced mode: enter a raw OpenWeather location query
 
 2. Spotify (add-current)
    - Create/sign in to Spotify Developer and open the dashboard: https://developer.spotify.com/dashboard
