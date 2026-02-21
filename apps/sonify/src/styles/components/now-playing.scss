@@ -9,17 +9,17 @@
   --np-track-size-boost-soft: clamp(2.79rem, calc(12.99vh + 1.197vw), 6.13rem);
   --np-track-size-boost-strong: clamp(3.0625rem, calc(14.25vh + 1.3125vw), 6.71875rem);
   --np-track-size: var(--np-track-size-base);
-  --np-track-line-height: 1.02;
+  --np-track-line-height: 1.08;
   --np-track-extra: clamp(10px, 2vh, 30px);
-  --np-track-descender-pad: clamp(2px, 0.35vh, 4px);
+  --np-track-descender-pad: clamp(3px, 0.45vh, 6px);
 
   --np-artists-size-base: clamp(2.15rem, calc(9.8vh + 0.9vw), 5.125rem);
   --np-artists-size-boost-soft: clamp(2.451rem, calc(11.172vh + 1.026vw), 5.8425rem);
   --np-artists-size-boost-strong: clamp(2.6875rem, calc(12.25vh + 1.125vw), 6.40625rem);
   --np-artists-size: var(--np-artists-size-base);
-  --np-artists-line-height: 1.02;
+  --np-artists-line-height: 1.06;
   --np-artists-extra: clamp(8px, 1.6vh, 20px);
-  --np-artists-descender-pad: clamp(2px, 0.3vh, 4px);
+  --np-artists-descender-pad: clamp(2px, 0.35vh, 5px);
   --np-title-artist-gap: clamp(1rem, 7.5vh, 2.75rem);
   --np-title-artist-gap-tight: calc(var(--np-title-artist-gap) * 0.8);
 
