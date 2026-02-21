@@ -1371,7 +1371,7 @@ if [[ "$configure_media_actions_api_prompt" == "1" && "$ENABLE_MEDIA_ACTIONS_API
   else
     echo "Spotify refresh token: [captured automatically]"
   fi
-  media_actions_api_playlist_input="$(prompt_text "Spotify playlist link or ID (example: https://open.spotify.com/playlist/3kQGrwA1LHaM2tt4qqfC2Y)" "$MEDIA_ACTIONS_API_PLAYLIST_ID")"
+  media_actions_api_playlist_input="$(prompt_text "Spotify playlist link or ID for media-actions-api (/media-actions-smart) (example: https://open.spotify.com/playlist/3kQGrwA1LHaM2tt4qqfC2Y)" "$MEDIA_ACTIONS_API_PLAYLIST_ID")"
   MEDIA_ACTIONS_API_PLAYLIST_ID="$(normalize_spotify_playlist_id "$media_actions_api_playlist_input")"
 
   if [[ "$MEDIA_ACTIONS_API_PLAYLIST_ID" != "$media_actions_api_playlist_input" && -n "$MEDIA_ACTIONS_API_PLAYLIST_ID" ]]; then
