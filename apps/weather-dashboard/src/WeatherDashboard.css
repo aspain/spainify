@@ -4,7 +4,6 @@
   --dashboard-pad-block: clamp(0.7rem, 2.1vh, 1.8rem);
   --dashboard-row-gap: clamp(0.35rem, 1.3vh, 1rem);
   --dashboard-vertical-bias: -2.5vh;
-  --summary-column-gap: clamp(0.5rem, 1.4vw, 2rem);
   --forecast-grid-gap: clamp(0.4rem, 1vw, 1rem);
 
   /* Scale controls */
@@ -40,14 +39,29 @@
 
 .weather-dashboard__summary {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   align-items: center;
-  gap: var(--summary-column-gap);
+  gap: var(--forecast-grid-gap);
 }
 
 .weather-dashboard__summary-panel {
   display: flex;
   align-items: center;
+  justify-content: center;
+}
+
+.weather-dashboard__summary-panel--left {
+  grid-column: 1 / span 2;
+  justify-content: center;
+}
+
+.weather-dashboard__summary-panel--center {
+  grid-column: 3 / span 2;
+  justify-content: center;
+}
+
+.weather-dashboard__summary-panel--right {
+  grid-column: 5 / span 2;
   justify-content: center;
 }
 
@@ -146,6 +160,13 @@
   .weather-dashboard__summary {
     grid-template-columns: 1fr;
     gap: clamp(0.5rem, 2vh, 1rem);
+  }
+
+  .weather-dashboard__summary-panel--left,
+  .weather-dashboard__summary-panel--center,
+  .weather-dashboard__summary-panel--right {
+    grid-column: auto;
+    justify-content: center;
   }
 
   .weather-dashboard__forecast {

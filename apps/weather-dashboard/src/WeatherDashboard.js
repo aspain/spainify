@@ -101,13 +101,13 @@ export default function WeatherDashboard() {
     <div className="weather-dashboard">
       <div className="weather-dashboard__content">
         <div className="weather-dashboard__summary">
-          <section className="weather-dashboard__summary-panel">
+          <section className="weather-dashboard__summary-panel weather-dashboard__summary-panel--left">
             <div className="weather-dashboard__temperature">{temperature}°F</div>
           </section>
-          <section className="weather-dashboard__summary-panel">
+          <section className="weather-dashboard__summary-panel weather-dashboard__summary-panel--center">
             <img src={iconUrl} alt="Current weather icon" className="weather-dashboard__current-icon" />
           </section>
-          <section className="weather-dashboard__summary-panel">
+          <section className="weather-dashboard__summary-panel weather-dashboard__summary-panel--right">
             <div className="weather-dashboard__extremes">
               <div className="weather-dashboard__extreme-row">
                 <span className="weather-dashboard__extreme-label">H</span> {dailyHigh}°
