@@ -542,6 +542,12 @@ prompt_openweather_location_query() {
     city_default="${parts[0]}"
   fi
   if (( ${#parts[@]} >= 2 )); then
+    # Preserve the second token as both state/country defaults when it's a
+    # 2-letter code so users can switch modes without losing prior input.
+    if [[ "${parts[1]}" =~ ^[A-Za-z]{2}$ ]]; then
+      state_default="$(printf '%s' "${parts[1]}" | tr '[:lower:]' '[:upper:]')"
+      country_default="$state_default"
+    fi
     if [[ "$default_mode" == "us" ]]; then
       state_default="${parts[1]}"
     elif [[ "$default_mode" == "international" ]]; then
@@ -1395,6 +1401,20 @@ fi
 
 WEATHER_API_KEY="$(read_existing_or_default "$weather_env_file" "REACT_APP_OPENWEATHER_API_KEY" "")"
 WEATHER_CITY="$(read_existing_or_default "$weather_env_file" "REACT_APP_CITY" "")"
+if [[ -z "$WEATHER_CITY" ]]; then
+  # Backward compatibility with older weather env keys.
+  WEATHER_CITY="$(read_existing_or_default "$weather_env_file" "WEATHER_CITY" "")"
+fi
+if [[ -z "$WEATHER_CITY" ]]; then
+  legacy_weather_city="$(read_existing_or_default "$weather_env_file" "CITY" "")"
+  legacy_weather_state="$(read_existing_or_default "$weather_env_file" "STATE" "")"
+  if [[ -n "$legacy_weather_city" && -n "$legacy_weather_state" ]]; then
+    WEATHER_CITY="$legacy_weather_city,$legacy_weather_state"
+  elif [[ -n "$legacy_weather_city" ]]; then
+    WEATHER_CITY="$legacy_weather_city"
+  fi
+fi
+WEATHER_CITY="$(normalize_openweather_location_query "$WEATHER_CITY")"
 WEATHER_DISPLAY_START="$(read_existing_or_default "$weather_env_file" "WEATHER_DISPLAY_START" "07:00")"
 WEATHER_DISPLAY_END="$(read_existing_or_default "$weather_env_file" "WEATHER_DISPLAY_END" "09:00")"
 if [[ "$configure_weather_prompt" == "1" && "$ENABLE_WEATHER_DASHBOARD" == "1" ]]; then
