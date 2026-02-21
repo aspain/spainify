@@ -328,17 +328,17 @@ prompt_existing_setup_mode() {
   local choice
 
   while true; do
-    echo
-    echo "Existing setup detected. Choose setup mode:"
-    echo "  1) Run full setup (all services and settings)"
-    echo "  2) Add/modify one service or room setting"
+    echo >&2
+    echo "Existing setup detected. Choose setup mode:" >&2
+    echo "  1) Run full setup (all services and settings)" >&2
+    echo "  2) Add/modify one service or room setting" >&2
     read -r -p "Enter 1 for full setup, or 2 to add/modify one service: [1] " choice || true
     choice="${choice:-1}"
 
     case "$choice" in
       1) printf 'full'; return ;;
       2) printf 'targeted'; return ;;
-      *) echo "Please enter 1 or 2." ;;
+      *) echo "Please enter 1 or 2." >&2 ;;
     esac
   done
 }
@@ -347,14 +347,14 @@ prompt_targeted_setup_item() {
   local choice
 
   while true; do
-    echo
-    echo "Choose what to add or modify:"
-    echo "  1) add-current (playlist + track-details API)"
-    echo "  2) spotify_display (now-playing display controller)"
-    echo "  3) weather-dashboard"
-    echo "  4) sonos-http-api"
-    echo "  5) sonify-serve (now-playing web UI)"
-    echo "  6) Now-playing Sonos zone"
+    echo >&2
+    echo "Choose what to add or modify:" >&2
+    echo "  1) add-current (playlist + track-details API)" >&2
+    echo "  2) spotify_display (now-playing display controller)" >&2
+    echo "  3) weather-dashboard" >&2
+    echo "  4) sonos-http-api" >&2
+    echo "  5) sonify-serve (now-playing web UI)" >&2
+    echo "  6) Now-playing Sonos zone" >&2
     read -r -p "Choose item: [1] " choice || true
     choice="${choice:-1}"
 
@@ -365,7 +365,7 @@ prompt_targeted_setup_item() {
       4) printf 'ENABLE_SONOS_HTTP_API'; return ;;
       5) printf 'ENABLE_SONIFY_SERVE'; return ;;
       6) printf 'SONOS_ROOM'; return ;;
-      *) echo "Please enter a number from 1 to 6." ;;
+      *) echo "Please enter a number from 1 to 6." >&2 ;;
     esac
   done
 }
