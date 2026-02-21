@@ -456,7 +456,7 @@ normalize_openweather_location_query() {
     fi
     part="$(printf '%s' "$part" | tr -s '[:space:]' ' ')"
     parts+=("$part")
-  done < <(printf '%s' "$input" | tr ',' '\n')
+  done < <(printf '%s\n' "$input" | tr ',' '\n')
 
   if (( ${#parts[@]} == 0 )); then
     printf ''
@@ -496,7 +496,7 @@ infer_openweather_location_mode() {
     if [[ -n "$part" ]]; then
       parts+=("$part")
     fi
-  done < <(printf '%s' "$input" | tr ',' '\n')
+  done < <(printf '%s\n' "$input" | tr ',' '\n')
 
   if (( ${#parts[@]} == 3 )) && [[ "${parts[2]}" == "US" && "${parts[1]}" =~ ^[A-Z]{2}$ ]]; then
     printf 'us'
@@ -535,7 +535,7 @@ prompt_openweather_location_query() {
       if [[ -n "$part" ]]; then
         parts+=("$part")
       fi
-    done < <(printf '%s' "$default_query" | tr ',' '\n')
+    done < <(printf '%s\n' "$default_query" | tr ',' '\n')
   fi
 
   if (( ${#parts[@]} >= 1 )); then
