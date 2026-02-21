@@ -480,6 +480,141 @@ normalize_openweather_location_query() {
   printf '%s,%s,%s' "$city" "$state" "$country"
 }
 
+infer_openweather_location_mode() {
+  local input
+  local part
+  local -a parts=()
+
+  input="$(normalize_openweather_location_query "${1:-}")"
+  if [[ -z "$input" ]]; then
+    printf 'us'
+    return
+  fi
+
+  while IFS= read -r part; do
+    part="$(spainify_trim "$part")"
+    if [[ -n "$part" ]]; then
+      parts+=("$part")
+    fi
+  done < <(printf '%s' "$input" | tr ',' '\n')
+
+  if (( ${#parts[@]} == 3 )) && [[ "${parts[2]}" == "US" && "${parts[1]}" =~ ^[A-Z]{2}$ ]]; then
+    printf 'us'
+    return
+  fi
+  if (( ${#parts[@]} == 2 )) && [[ "${parts[1]}" =~ ^[A-Z]{2}$ ]]; then
+    printf 'international'
+    return
+  fi
+  printf 'raw'
+}
+
+prompt_openweather_location_query() {
+  local default_query_raw="${1:-}"
+  local default_query=""
+  local default_mode=""
+  local mode_choice=""
+  local mode_label=""
+  local part=""
+  local city_default=""
+  local state_default=""
+  local country_default=""
+  local city=""
+  local state=""
+  local country=""
+  local raw_query=""
+  local query=""
+  local -a parts=()
+
+  default_query="$(normalize_openweather_location_query "$default_query_raw")"
+  default_mode="$(infer_openweather_location_mode "$default_query")"
+
+  if [[ -n "$default_query" ]]; then
+    while IFS= read -r part; do
+      part="$(spainify_trim "$part")"
+      if [[ -n "$part" ]]; then
+        parts+=("$part")
+      fi
+    done < <(printf '%s' "$default_query" | tr ',' '\n')
+  fi
+
+  if (( ${#parts[@]} >= 1 )); then
+    city_default="${parts[0]}"
+  fi
+  if (( ${#parts[@]} >= 2 )); then
+    if [[ "$default_mode" == "us" ]]; then
+      state_default="${parts[1]}"
+    elif [[ "$default_mode" == "international" ]]; then
+      country_default="${parts[1]}"
+    fi
+  fi
+  if (( ${#parts[@]} >= 3 )) && [[ "$default_mode" == "us" ]]; then
+    state_default="${parts[1]}"
+  fi
+
+  case "$default_mode" in
+    us) mode_choice="1" ;;
+    international) mode_choice="2" ;;
+    *) mode_choice="3" ;;
+  esac
+
+  while true; do
+    echo "Choose weather location input mode:"
+    echo "  1) US city + state (recommended for US)"
+    echo "  2) International city + country"
+    echo "  3) Raw OpenWeather query (advanced)"
+    read -r -p "Mode: [$mode_choice] " mode_label || true
+    mode_label="${mode_label:-$mode_choice}"
+    mode_label="$(spainify_trim "$mode_label")"
+    case "$mode_label" in
+      1|2|3)
+        mode_choice="$mode_label"
+        break
+        ;;
+      *)
+        echo "Please enter 1, 2, or 3."
+        ;;
+    esac
+  done
+
+  case "$mode_choice" in
+    1)
+      city="$(prompt_required_text "Weather city (US)" "$city_default")"
+      while true; do
+        state="$(prompt_required_text "US state code (2 letters)" "$state_default")"
+        state="$(printf '%s' "$state" | tr -d '[:space:]' | tr '[:lower:]' '[:upper:]')"
+        if [[ "$state" =~ ^[A-Z]{2}$ ]]; then
+          break
+        fi
+        echo "Please enter a 2-letter US state code (example: MD)."
+      done
+      query="$(normalize_openweather_location_query "$city,$state,US")"
+      ;;
+    2)
+      city="$(prompt_required_text "Weather city (international)" "$city_default")"
+      while true; do
+        country="$(prompt_required_text "Country code (2 letters, example: GB)" "$country_default")"
+        country="$(printf '%s' "$country" | tr -d '[:space:]' | tr '[:lower:]' '[:upper:]')"
+        if [[ "$country" =~ ^[A-Z]{2}$ ]]; then
+          break
+        fi
+        echo "Please enter a 2-letter country code (example: GB)."
+      done
+      query="$(normalize_openweather_location_query "$city,$country")"
+      ;;
+    *)
+      raw_query="$(prompt_required_text "Weather location query (advanced)" "$default_query")"
+      query="$(normalize_openweather_location_query "$raw_query")"
+      ;;
+  esac
+
+  if [[ -z "$query" ]]; then
+    echo "Weather location query is required."
+    return 1
+  fi
+  printf '%s' "$query"
+}
+
 load_available_sonos_rooms() {
   local sonos_base="$1"
   local tmp_json
@@ -1263,19 +1398,13 @@ WEATHER_CITY="$(read_existing_or_default "$weather_env_file" "REACT_APP_CITY" ""
 WEATHER_DISPLAY_START="$(read_existing_or_default "$weather_env_file" "WEATHER_DISPLAY_START" "07:00")"
 WEATHER_DISPLAY_END="$(read_existing_or_default "$weather_env_file" "WEATHER_DISPLAY_END" "09:00")"
 if [[ "$configure_weather_prompt" == "1" && "$ENABLE_WEATHER_DASHBOARD" == "1" ]]; then
-  weather_city_input=""
-  weather_city_trimmed=""
   echo
   echo "Configure weather dashboard values:"
   print_openweather_setup_help
   echo
   WEATHER_API_KEY="$(spainify_trim "$(prompt_required_text "OpenWeather API key" "$WEATHER_API_KEY")")"
-  weather_city_input="$(prompt_required_text "Weather location query (example: Springfield,IL,US)" "$WEATHER_CITY")"
-  weather_city_trimmed="$(spainify_trim "$weather_city_input")"
-  WEATHER_CITY="$(normalize_openweather_location_query "$weather_city_trimmed")"
-  if [[ -n "$WEATHER_CITY" && "$WEATHER_CITY" != "$weather_city_trimmed" ]]; then
-    echo "Using weather location query: $WEATHER_CITY"
-  fi
+  WEATHER_CITY="$(prompt_openweather_location_query "$WEATHER_CITY")"
+  echo "Using weather location query: $WEATHER_CITY"
   WEATHER_DISPLAY_START="$(prompt_time_hhmm "Enter weather display start time (example: 7:00am)" "$WEATHER_DISPLAY_START")"
   WEATHER_DISPLAY_END="$(prompt_time_hhmm "Enter weather display end time (example: 9:00am)" "$WEATHER_DISPLAY_END")"
 fi
