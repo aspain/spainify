@@ -81,7 +81,7 @@ To change service choices later, just re-run setup:
 - `sonify-ui.service` — now-playing web UI host
 - `sonos-http-api.service` — Sonos HTTP API backend (includes local `/album-art` proxy)
 - `weather-dashboard.service` — weather web UI host
-- Source app directories live under `apps/` (for example `apps/add-current`, `apps/spotify-display`, `apps/sonify`)
+- Source app directories live under `apps/`; some folder names remain legacy for compatibility (for example `apps/add-current`, `apps/spotify-display`, `apps/sonify`)
 - `systemd/` — service unit templates
 - `scripts/redeploy.sh` — deploy/restart enabled services for this Pi
 
@@ -98,10 +98,10 @@ To change service choices later, just re-run setup:
 Setup writes all required config files for the device. In normal usage, you should not need to create or edit these manually.
 
 - `.spainify-device.env` — per-device service enablement profile used by `scripts/redeploy.sh`
-- `apps/add-current/.env` — Spotify/API settings for media-actions-api (if enabled)
-- `apps/spotify-display/.env` — display room/cursor settings (if enabled)
-- `apps/weather-dashboard/.env` — weather settings (API key, city, display start/end time)
-- `apps/sonify/.env.local` — sonify room + optional metadata endpoint (if enabled)
+- `media-actions-api` config file: `apps/add-current/.env` (Spotify/API settings, if enabled)
+- `display-controller` config file: `apps/spotify-display/.env` (room/cursor settings, if enabled)
+- `weather-dashboard` config file: `apps/weather-dashboard/.env` (API key, city, display start/end time)
+- `sonify-ui` config file: `apps/sonify/.env.local` (room + optional metadata endpoint, if enabled)
 
 To change settings, re-run setup instead of editing files by hand:
 
