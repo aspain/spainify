@@ -434,6 +434,52 @@ normalize_spotify_playlist_id() {
   printf '%s' "$input"
 }
 
+normalize_openweather_location_query() {
+  local input
+  local part
+  local city
+  local region
+  local state
+  local country
+  local -a parts=()
+
+  input="$(spainify_trim "${1:-}")"
+  if [[ -z "$input" ]]; then
+    printf ''
+    return
+  fi
+
+  while IFS= read -r part; do
+    part="$(spainify_trim "$part")"
+    if [[ -z "$part" ]]; then
+      continue
+    fi
+    part="$(printf '%s' "$part" | tr -s '[:space:]' ' ')"
+    parts+=("$part")
+  done < <(printf '%s' "$input" | tr ',' '\n')
+
+  if (( ${#parts[@]} == 0 )); then
+    printf ''
+    return
+  fi
+
+  city="${parts[0]}"
+  if (( ${#parts[@]} == 1 )); then
+    printf '%s' "$city"
+    return
+  fi
+
+  region="$(printf '%s' "${parts[1]}" | tr -d '[:space:]' | tr '[:lower:]' '[:upper:]')"
+  if (( ${#parts[@]} == 2 )); then
+    printf '%s,%s' "$city" "$region"
+    return
+  fi
+
+  state="$region"
+  country="$(printf '%s' "${parts[2]}" | tr -d '[:space:]' | tr '[:lower:]' '[:upper:]')"
+  printf '%s,%s,%s' "$city" "$state" "$country"
+}
+
 load_available_sonos_rooms() {
   local sonos_base="$1"
   local tmp_json
@@ -772,6 +818,7 @@ print_openweather_setup_help() {
   echo "  3) For location, use a specific query to avoid duplicate city names:"
   echo "     - US format: City,StateCode,US (example: Springfield,IL,US)"
   echo "     - International format: City,CountryCode (example: London,GB)"
+  echo "     - Extra spaces and lowercase codes are okay; setup normalizes them."
 }
 
 start_spotify_auth_helper() {
@@ -984,6 +1031,9 @@ write_weather_env() {
   local city="$2"
   local display_start="$3"
   local display_end="$4"
+
+  api_key="$(spainify_trim "$api_key")"
+  city="$(normalize_openweather_location_query "$city")"
 
 cat >"$file" <<EOF_WEATHER
 REACT_APP_OPENWEATHER_API_KEY="$(escape_double_quotes "$api_key")"
@@ -1213,12 +1263,19 @@ WEATHER_CITY="$(read_existing_or_default "$weather_env_file" "REACT_APP_CITY" ""
 WEATHER_DISPLAY_START="$(read_existing_or_default "$weather_env_file" "WEATHER_DISPLAY_START" "07:00")"
 WEATHER_DISPLAY_END="$(read_existing_or_default "$weather_env_file" "WEATHER_DISPLAY_END" "09:00")"
 if [[ "$configure_weather_prompt" == "1" && "$ENABLE_WEATHER_DASHBOARD" == "1" ]]; then
+  weather_city_input=""
+  weather_city_trimmed=""
   echo
   echo "Configure weather dashboard values:"
   print_openweather_setup_help
   echo
-  WEATHER_API_KEY="$(prompt_required_text "OpenWeather API key" "$WEATHER_API_KEY")"
-  WEATHER_CITY="$(prompt_required_text "Weather location query (example: Springfield,IL,US)" "$WEATHER_CITY")"
+  WEATHER_API_KEY="$(spainify_trim "$(prompt_required_text "OpenWeather API key" "$WEATHER_API_KEY")")"
+  weather_city_input="$(prompt_required_text "Weather location query (example: Springfield,IL,US)" "$WEATHER_CITY")"
+  weather_city_trimmed="$(spainify_trim "$weather_city_input")"
+  WEATHER_CITY="$(normalize_openweather_location_query "$weather_city_trimmed")"
+  if [[ -n "$WEATHER_CITY" && "$WEATHER_CITY" != "$weather_city_trimmed" ]]; then
+    echo "Using weather location query: $WEATHER_CITY"
+  fi
   WEATHER_DISPLAY_START="$(prompt_time_hhmm "Enter weather display start time (example: 7:00am)" "$WEATHER_DISPLAY_START")"
   WEATHER_DISPLAY_END="$(prompt_time_hhmm "Enter weather display end time (example: 9:00am)" "$WEATHER_DISPLAY_END")"
 fi

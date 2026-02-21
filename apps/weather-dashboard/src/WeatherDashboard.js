@@ -5,6 +5,35 @@ const REFRESH_INTERVAL_MS = 10 * 60 * 1000;
 const FORECAST_SLOT_COUNT = 6;
 const DEFAULT_ICON_CODE = '01d';
 
+function normalizeLocationQuery(raw) {
+  const input = (raw || '').trim();
+  if (!input) {
+    return '';
+  }
+
+  const parts = input
+    .split(',')
+    .map((part) => part.trim().replace(/\s+/g, ' '))
+    .filter(Boolean);
+  if (parts.length === 0) {
+    return '';
+  }
+
+  const city = parts[0];
+  if (parts.length === 1) {
+    return city;
+  }
+
+  const region = parts[1].replace(/\s+/g, '').toUpperCase();
+  if (parts.length === 2) {
+    return `${city},${region}`;
+  }
+
+  const state = region;
+  const country = parts[2].replace(/\s+/g, '').toUpperCase();
+  return `${city},${state},${country}`;
+}
+
 function getLocalDateKey(unixSeconds, offsetSeconds) {
   return new Date((unixSeconds + offsetSeconds) * 1000).toISOString().slice(0, 10);
 }
@@ -25,7 +54,8 @@ export default function WeatherDashboard() {
 
   const city = process.env.REACT_APP_CITY;
   const apiKey = process.env.REACT_APP_OPENWEATHER_API_KEY;
-  const locationQuery = encodeURIComponent(city || '');
+  const normalizedLocation = normalizeLocationQuery(city);
+  const locationQuery = encodeURIComponent(normalizedLocation);
 
   useEffect(() => {
     let ignoreResult = false;

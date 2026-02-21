@@ -48,6 +48,7 @@ Before running setup, gather API credentials:
    - For city/location input, use a specific OpenWeather query when names are duplicated:
      - US: `City,StateCode,US` (example: `Springfield,IL,US`)
      - Outside US: `City,CountryCode` (example: `London,GB`)
+   - Setup normalizes extra spaces and uppercases region/country codes in comma-separated queries.
    - If your city name is unique, a plain city name can work, but `City,StateCode,US` is more reliable.
 
 2. Spotify (add-current)
