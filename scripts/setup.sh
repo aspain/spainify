@@ -1122,6 +1122,10 @@ if [[ -z "$default_room" ]]; then
   default_room="$(read_existing_or_default "$sonify_env_local_file" "VUE_APP_SONOS_ROOM" "")"
 fi
 default_room="$(sanitize_room_default "$default_room")"
+if [[ "$SETUP_MODE" == "targeted" && "$SETUP_TARGET_KEY" == "SONOS_ROOM" ]]; then
+  # Force an explicit selection when user is changing only the now-playing zone.
+  default_room=""
+fi
 
 SONOS_ROOM_VALUE="$default_room"
 if [[ "$configure_room_prompt" == "1" ]]; then
