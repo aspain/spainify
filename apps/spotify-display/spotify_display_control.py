@@ -226,7 +226,11 @@ def _mark_sanitized(last_sanitize_path, needs_sanitize_path):
         logging.exception("Failed to update sanitize markers.")
 
 
-SONOS_ROOM = os.getenv("SONOS_ROOM", "Living Room")
+SONOS_ROOM = os.getenv("SONOS_ROOM", "").strip()
+if not SONOS_ROOM:
+    logging.warning(
+        "SONOS_ROOM is not configured; Sonos playback detection is disabled until setup provides a room."
+    )
 
 
 def sonos_is_playing(

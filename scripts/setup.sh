@@ -324,6 +324,52 @@ prompt_time_hhmm() {
   done
 }
 
+prompt_existing_setup_mode() {
+  local choice
+
+  while true; do
+    echo
+    echo "Existing setup detected. Choose setup mode:"
+    echo "  1) Run full setup (all services and settings)"
+    echo "  2) Add/modify one service or room setting"
+    read -r -p "Choose mode: [1] " choice || true
+    choice="${choice:-1}"
+
+    case "$choice" in
+      1) printf 'full'; return ;;
+      2) printf 'targeted'; return ;;
+      *) echo "Please enter 1 or 2." ;;
+    esac
+  done
+}
+
+prompt_targeted_setup_item() {
+  local choice
+
+  while true; do
+    echo
+    echo "Choose what to add or modify:"
+    echo "  1) add-current (playlist + track-details API)"
+    echo "  2) spotify_display (now-playing display controller)"
+    echo "  3) weather-dashboard"
+    echo "  4) sonos-http-api"
+    echo "  5) sonify-serve (now-playing web UI)"
+    echo "  6) Now-playing Sonos zone"
+    read -r -p "Choose item: [1] " choice || true
+    choice="${choice:-1}"
+
+    case "$choice" in
+      1) printf 'ENABLE_ADD_CURRENT'; return ;;
+      2) printf 'ENABLE_SPOTIFY_DISPLAY'; return ;;
+      3) printf 'ENABLE_WEATHER_DASHBOARD'; return ;;
+      4) printf 'ENABLE_SONOS_HTTP_API'; return ;;
+      5) printf 'ENABLE_SONIFY_SERVE'; return ;;
+      6) printf 'SONOS_ROOM'; return ;;
+      *) echo "Please enter a number from 1 to 6." ;;
+    esac
+  done
+}
+
 escape_double_quotes() {
   local value="$1"
   value="${value//\\/\\\\}"
@@ -361,8 +407,8 @@ sanitize_room_default() {
   fi
 
   # Guard against broken prior values such as a standalone quote.
-  if [[ -z "$value" || "$value" == '"' || "$value" == "'" ]]; then
-    value="Living Room"
+  if [[ "$value" == '"' || "$value" == "'" ]]; then
+    value=""
   fi
   printf '%s' "$value"
 }
@@ -961,10 +1007,17 @@ EOF_SONIFY
 echo "==> spainify setup wizard"
 echo "This script configures services and writes local env files for this device."
 
+SETUP_MODE="full"
+SETUP_TARGET_KEY=""
+
 if [[ -f "$DEVICE_CONFIG_FILE" ]]; then
   echo "Found existing device config: $DEVICE_CONFIG_FILE"
   # shellcheck disable=SC1090
   source "$DEVICE_CONFIG_FILE"
+  SETUP_MODE="$(prompt_existing_setup_mode)"
+  if [[ "$SETUP_MODE" == "targeted" ]]; then
+    SETUP_TARGET_KEY="$(prompt_targeted_setup_item)"
+  fi
 fi
 
 for key in "${SPAINIFY_SERVICE_KEYS[@]}"; do
@@ -973,11 +1026,21 @@ for key in "${SPAINIFY_SERVICE_KEYS[@]}"; do
 done
 
 echo
-for key in "${SPAINIFY_SERVICE_KEYS[@]}"; do
-  prompt="$(spainify_service_prompt "$key")"
-  answer="$(prompt_yes_no "$prompt" "${!key}")"
-  printf -v "$key" '%s' "$(spainify_normalize_bool "$answer" "${!key}")"
-done
+if [[ "$SETUP_MODE" == "full" ]]; then
+  for key in "${SPAINIFY_SERVICE_KEYS[@]}"; do
+    prompt="$(spainify_service_prompt "$key")"
+    answer="$(prompt_yes_no "$prompt" "${!key}")"
+    printf -v "$key" '%s' "$(spainify_normalize_bool "$answer" "${!key}")"
+  done
+else
+  if [[ "$SETUP_TARGET_KEY" == "SONOS_ROOM" ]]; then
+    echo "Targeted mode: service enablement unchanged; now-playing Sonos zone only."
+  else
+    prompt="$(spainify_service_prompt "$SETUP_TARGET_KEY")"
+    answer="$(prompt_yes_no "$prompt" "${!SETUP_TARGET_KEY}")"
+    printf -v "$SETUP_TARGET_KEY" '%s' "$(spainify_normalize_bool "$answer" "${!SETUP_TARGET_KEY}")"
+  fi
+fi
 
 dependency_notes_file="$(mktemp)"
 spainify_apply_service_dependencies >"$dependency_notes_file" || true
@@ -1000,22 +1063,75 @@ add_current_env_file="$ROOT_DIR/apps/add-current/.env"
 weather_env_file="$ROOT_DIR/apps/weather-dashboard/.env"
 sonify_env_local_file="$ROOT_DIR/apps/sonify/.env.local"
 
+configure_room_prompt="0"
+configure_cursor_prompt="0"
+configure_add_current_prompt="0"
+configure_weather_prompt="0"
+configure_sonify_prompt="0"
+
+if [[ "$SETUP_MODE" == "full" ]]; then
+  if [[ "$ENABLE_SPOTIFY_DISPLAY" == "1" || "$ENABLE_SONIFY_SERVE" == "1" || "$ENABLE_ADD_CURRENT" == "1" ]]; then
+    configure_room_prompt="1"
+  fi
+  if [[ "$ENABLE_SPOTIFY_DISPLAY" == "1" ]]; then
+    configure_cursor_prompt="1"
+  fi
+  if [[ "$ENABLE_ADD_CURRENT" == "1" ]]; then
+    configure_add_current_prompt="1"
+  fi
+  if [[ "$ENABLE_WEATHER_DASHBOARD" == "1" ]]; then
+    configure_weather_prompt="1"
+  fi
+  if [[ "$ENABLE_SONIFY_SERVE" == "1" ]]; then
+    configure_sonify_prompt="1"
+  fi
+else
+  case "$SETUP_TARGET_KEY" in
+    ENABLE_ADD_CURRENT)
+      if [[ "$ENABLE_ADD_CURRENT" == "1" ]]; then
+        configure_add_current_prompt="1"
+        configure_room_prompt="1"
+      fi
+      ;;
+    ENABLE_SPOTIFY_DISPLAY)
+      if [[ "$ENABLE_SPOTIFY_DISPLAY" == "1" ]]; then
+        configure_room_prompt="1"
+        configure_cursor_prompt="1"
+      fi
+      ;;
+    ENABLE_WEATHER_DASHBOARD)
+      if [[ "$ENABLE_WEATHER_DASHBOARD" == "1" ]]; then
+        configure_weather_prompt="1"
+      fi
+      ;;
+    ENABLE_SONIFY_SERVE)
+      if [[ "$ENABLE_SONIFY_SERVE" == "1" ]]; then
+        configure_room_prompt="1"
+        configure_sonify_prompt="1"
+      fi
+      ;;
+    SONOS_ROOM)
+      configure_room_prompt="1"
+      ;;
+  esac
+fi
+
 default_sonos_http_base="$(read_existing_or_default "$add_current_env_file" "SONOS_HTTP_BASE" "http://127.0.0.1:5005")"
 default_room="$(read_existing_or_default "$display_env_file" "SONOS_ROOM" "")"
 if [[ -z "$default_room" ]]; then
-  default_room="$(read_existing_or_default "$sonify_env_local_file" "VUE_APP_SONOS_ROOM" "Living Room")"
+  default_room="$(read_existing_or_default "$sonify_env_local_file" "VUE_APP_SONOS_ROOM" "")"
 fi
 default_room="$(sanitize_room_default "$default_room")"
 
 SONOS_ROOM_VALUE="$default_room"
-if [[ "$ENABLE_SPOTIFY_DISPLAY" == "1" || "$ENABLE_SONIFY_SERVE" == "1" || "$ENABLE_ADD_CURRENT" == "1" ]]; then
+if [[ "$configure_room_prompt" == "1" ]]; then
   SONOS_ROOM_VALUE="$(prompt_sonos_room "$default_room" "$default_sonos_http_base")"
 fi
 cleanup_setup_helpers
 
 HIDE_CURSOR_WHILE_DISPLAYING_VALUE="$(read_existing_or_default "$display_env_file" "HIDE_CURSOR_WHILE_DISPLAYING" "1")"
 HIDE_CURSOR_IDLE_SECONDS_VALUE="$(read_existing_or_default "$display_env_file" "HIDE_CURSOR_IDLE_SECONDS" "0.1")"
-if [[ "$ENABLE_SPOTIFY_DISPLAY" == "1" ]]; then
+if [[ "$configure_cursor_prompt" == "1" && "$ENABLE_SPOTIFY_DISPLAY" == "1" ]]; then
   echo
   HIDE_CURSOR_WHILE_DISPLAYING_VALUE="$(prompt_yes_no "Hide mouse cursor while content is showing?" "$HIDE_CURSOR_WHILE_DISPLAYING_VALUE")"
 fi
@@ -1028,7 +1144,7 @@ ADD_CURRENT_SONOS_HTTP_BASE="$(read_existing_or_default "$add_current_env_file" 
 ADD_CURRENT_PREFERRED_ROOM="$(read_existing_or_default "$add_current_env_file" "PREFERRED_ROOM" "")"
 ADD_CURRENT_DEDUPE_WINDOW="$(read_existing_or_default "$add_current_env_file" "DE_DUPE_WINDOW" "750")"
 
-if [[ "$ENABLE_ADD_CURRENT" == "1" ]]; then
+if [[ "$configure_add_current_prompt" == "1" && "$ENABLE_ADD_CURRENT" == "1" ]]; then
   token_captured_automatically="0"
   echo
   echo "Configure add-current service values:"
@@ -1097,7 +1213,7 @@ WEATHER_API_KEY="$(read_existing_or_default "$weather_env_file" "REACT_APP_OPENW
 WEATHER_CITY="$(read_existing_or_default "$weather_env_file" "REACT_APP_CITY" "")"
 WEATHER_DISPLAY_START="$(read_existing_or_default "$weather_env_file" "WEATHER_DISPLAY_START" "07:00")"
 WEATHER_DISPLAY_END="$(read_existing_or_default "$weather_env_file" "WEATHER_DISPLAY_END" "09:00")"
-if [[ "$ENABLE_WEATHER_DASHBOARD" == "1" ]]; then
+if [[ "$configure_weather_prompt" == "1" && "$ENABLE_WEATHER_DASHBOARD" == "1" ]]; then
   echo
   echo "Configure weather dashboard values:"
   WEATHER_API_KEY="$(prompt_required_text "OpenWeather API key" "$WEATHER_API_KEY")"
@@ -1107,9 +1223,9 @@ if [[ "$ENABLE_WEATHER_DASHBOARD" == "1" ]]; then
 fi
 
 SONIFY_METADATA_BASE_EXISTING="$(read_existing_or_default "$sonify_env_local_file" "VUE_APP_ADD_CURRENT_BASE" "")"
-SONIFY_METADATA_BASE=""
+SONIFY_METADATA_BASE="$SONIFY_METADATA_BASE_EXISTING"
 
-if [[ "$ENABLE_SONIFY_SERVE" == "1" ]]; then
+if [[ "$configure_sonify_prompt" == "1" && "$ENABLE_SONIFY_SERVE" == "1" ]]; then
   echo
   if [[ "$ENABLE_ADD_CURRENT" == "1" ]]; then
     SONIFY_METADATA_BASE="http://localhost:3030"
@@ -1122,10 +1238,72 @@ if [[ "$ENABLE_SONIFY_SERVE" == "1" ]]; then
   fi
 fi
 
+if [[ "$SETUP_MODE" == "targeted" && "$SETUP_TARGET_KEY" == "ENABLE_ADD_CURRENT" && "$ENABLE_ADD_CURRENT" == "1" && "$ENABLE_SONIFY_SERVE" == "1" ]]; then
+  SONIFY_METADATA_BASE="http://localhost:3030"
+fi
+
 echo
 echo "==> Writing configuration files"
+
+WRITE_ADD_CURRENT_ENV="0"
+WRITE_SPOTIFY_DISPLAY_ENV="0"
+WRITE_WEATHER_ENV="0"
+WRITE_SONIFY_ENV_LOCAL="0"
+
+if [[ "$SETUP_MODE" == "full" ]]; then
+  if [[ "$ENABLE_ADD_CURRENT" == "1" ]]; then
+    WRITE_ADD_CURRENT_ENV="1"
+  fi
+  if [[ "$ENABLE_SPOTIFY_DISPLAY" == "1" ]]; then
+    WRITE_SPOTIFY_DISPLAY_ENV="1"
+  fi
+  if [[ "$ENABLE_WEATHER_DASHBOARD" == "1" ]]; then
+    WRITE_WEATHER_ENV="1"
+  fi
+  if [[ "$ENABLE_SONIFY_SERVE" == "1" ]]; then
+    WRITE_SONIFY_ENV_LOCAL="1"
+  fi
+else
+  case "$SETUP_TARGET_KEY" in
+    ENABLE_ADD_CURRENT)
+      if [[ "$ENABLE_ADD_CURRENT" == "1" ]]; then
+        WRITE_ADD_CURRENT_ENV="1"
+      fi
+      if [[ "$ENABLE_SONIFY_SERVE" == "1" ]]; then
+        WRITE_SONIFY_ENV_LOCAL="1"
+      fi
+      ;;
+    ENABLE_SPOTIFY_DISPLAY)
+      if [[ "$ENABLE_SPOTIFY_DISPLAY" == "1" ]]; then
+        WRITE_SPOTIFY_DISPLAY_ENV="1"
+      fi
+      if [[ "$ENABLE_SONIFY_SERVE" == "1" ]]; then
+        WRITE_SONIFY_ENV_LOCAL="1"
+      fi
+      ;;
+    ENABLE_WEATHER_DASHBOARD)
+      if [[ "$ENABLE_WEATHER_DASHBOARD" == "1" ]]; then
+        WRITE_WEATHER_ENV="1"
+      fi
+      ;;
+    ENABLE_SONIFY_SERVE)
+      if [[ "$ENABLE_SONIFY_SERVE" == "1" ]]; then
+        WRITE_SONIFY_ENV_LOCAL="1"
+      fi
+      ;;
+    SONOS_ROOM)
+      if [[ "$ENABLE_SPOTIFY_DISPLAY" == "1" ]]; then
+        WRITE_SPOTIFY_DISPLAY_ENV="1"
+      fi
+      if [[ "$ENABLE_SONIFY_SERVE" == "1" ]]; then
+        WRITE_SONIFY_ENV_LOCAL="1"
+      fi
+      ;;
+  esac
+fi
+
 write_device_config "$SONOS_ROOM_VALUE" "$SONIFY_METADATA_BASE"
-if [[ "$ENABLE_ADD_CURRENT" == "1" ]]; then
+if [[ "$WRITE_ADD_CURRENT_ENV" == "1" ]]; then
   write_add_current_env \
     "$ADD_CURRENT_CLIENT_ID" \
     "$ADD_CURRENT_CLIENT_SECRET" \
@@ -1135,16 +1313,16 @@ if [[ "$ENABLE_ADD_CURRENT" == "1" ]]; then
     "$ADD_CURRENT_PREFERRED_ROOM" \
     "$ADD_CURRENT_DEDUPE_WINDOW"
 fi
-if [[ "$ENABLE_SPOTIFY_DISPLAY" == "1" ]]; then
+if [[ "$WRITE_SPOTIFY_DISPLAY_ENV" == "1" ]]; then
   write_spotify_display_env \
     "$SONOS_ROOM_VALUE" \
     "$HIDE_CURSOR_WHILE_DISPLAYING_VALUE" \
     "$HIDE_CURSOR_IDLE_SECONDS_VALUE"
 fi
-if [[ "$ENABLE_WEATHER_DASHBOARD" == "1" ]]; then
+if [[ "$WRITE_WEATHER_ENV" == "1" ]]; then
   write_weather_env "$WEATHER_API_KEY" "$WEATHER_CITY" "$WEATHER_DISPLAY_START" "$WEATHER_DISPLAY_END"
 fi
-if [[ "$ENABLE_SONIFY_SERVE" == "1" ]]; then
+if [[ "$WRITE_SONIFY_ENV_LOCAL" == "1" ]]; then
   write_sonify_env_local "$SONOS_ROOM_VALUE" "$SONIFY_METADATA_BASE"
 fi
 

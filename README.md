@@ -106,6 +106,8 @@ cd /path/to/spainify
 ./scripts/setup-remote.sh <pi-user>@<pi-ip>
 ```
 
+If setup already exists, the wizard now asks whether to run full setup or add/modify one specific service (or now-playing Sonos zone).
+
 For multi-Pi setups, run the same update commands on each Pi. Each Pi keeps its own local `.spainify-device.env`.
 
 ## Service Commands
