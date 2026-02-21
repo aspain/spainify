@@ -1382,7 +1382,20 @@ if [[ "$SETUP_MODE" == "targeted" ]]; then
   fi
 fi
 
-run_now="$(prompt_yes_no "Run redeploy now?" "1")"
+redeploy_prompt="Run redeploy now?"
+if [[ "$SETUP_MODE" == "targeted" ]]; then
+  case "$SETUP_TARGET_KEY" in
+    ENABLE_ADD_CURRENT) redeploy_prompt="Deploy changes for add-current now?" ;;
+    ENABLE_SPOTIFY_DISPLAY) redeploy_prompt="Deploy changes for spotify_display now?" ;;
+    ENABLE_WEATHER_DASHBOARD) redeploy_prompt="Deploy changes for weather-dashboard now?" ;;
+    ENABLE_SONOS_HTTP_API) redeploy_prompt="Deploy changes for sonos-http-api now?" ;;
+    ENABLE_SONIFY_SERVE) redeploy_prompt="Deploy changes for sonify-serve now?" ;;
+    SONOS_ROOM) redeploy_prompt="Deploy changes for Now-playing Sonos zone now?" ;;
+    *) redeploy_prompt="Deploy selected changes now?" ;;
+  esac
+fi
+
+run_now="$(prompt_yes_no "$redeploy_prompt" "1")"
 if [[ "$run_now" == "1" ]]; then
   echo
   echo "==> Running redeploy..."
