@@ -45,16 +45,16 @@ Before running setup, gather API credentials:
 1. OpenWeather (weather-dashboard)
    - Create/sign in and generate an API key at https://home.openweathermap.org/api_keys
    - Paste that value into the `OpenWeather API key` setup prompt.
-   - Setup then guides location input with three modes:
-     - US mode: enter city + 2-letter state code (saved as `City,ST,US`)
-     - International mode: enter city + 2-letter country code (saved as `City,CC`)
+   - Setup then prompts for location input with three modes:
+     - US mode: enter city, then 2-letter state code
+     - International mode: enter city, then 2-letter country code
      - Advanced mode: enter a raw OpenWeather location query
 
 2. Spotify (media-actions-api)
    - Create/sign in to Spotify Developer and open the dashboard: https://developer.spotify.com/dashboard
    - Create an app and add both redirect URIs:
      - `http://127.0.0.1:8888/callback`
-     - `http://<pi-ip-address>:8888/callback`
+     - `http://<your-pi-ip-address>:8888/callback`
    - Copy `Client ID` and `Client Secret` into setup prompts.
 
 Optional: run setup directly on the Pi (for local desktop use):
@@ -76,11 +76,11 @@ To change service choices later, just re-run setup:
 
 ## Apps and Services
 
-- `media-actions-api.service` — playlist add + metadata + Sonos grouping API
+- `media-actions-api.service` — add-to-playist + metadata + Sonos grouping API
 - `display-controller.service` — Python display controller (power, browser, mode switching)
-- `sonify-ui.service` — now-playing web UI host
-- `sonos-http-api.service` — Sonos HTTP API backend (includes local `/album-art` proxy)
-- `weather-dashboard.service` — weather web UI host
+- `sonify-ui.service` — powers the now-playing web UI host
+- `sonos-http-api.service` — Sonos HTTP API backend, allows for one-click iOS shortcut presets
+- `weather-dashboard.service` — weather forecast web UI host
 - Source app directories live under `apps/` (for example `apps/media-actions-api`, `apps/display-controller`, `apps/sonify-ui`)
 - `systemd/` — service unit templates
 - `scripts/redeploy.sh` — deploy/restart enabled services for this Pi
