@@ -106,7 +106,15 @@ cd /path/to/spainify
 ./scripts/setup-remote.sh <pi-user>@<pi-ip>
 ```
 
-If setup already exists, the wizard now asks whether to run full setup or add/modify one specific service (or now-playing Sonos zone).
+If setup already exists, the wizard asks whether to run full setup or add/modify one specific item.
+
+Targeted mode supports:
+- `add-current` (playlist + track-details API)
+- `weather-dashboard`
+- `Now-playing Sonos zone`
+- `spotify_display` (now-playing display controller)
+
+In targeted mode, setup redeploys only the required service scope instead of running a full redeploy.
 
 For multi-Pi setups, run the same update commands on each Pi. Each Pi keeps its own local `.spainify-device.env`.
 
