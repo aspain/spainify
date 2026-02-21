@@ -95,7 +95,8 @@ To change service choices later, just re-run setup:
 
 ## iOS Shortcut: Add Current Track to Playlist
 
-This shortcut hits the local `media-actions-api` and adds the currently playing track to your configured Spotify playlist.
+This shortcut hits the local `media-actions-api` and adds the currently playing track to your configured Spotify playlist with a single tap in iOS (it can be placed on the lock screen, in widgets, etc.).
+This avoids opening the Spotify or Sonos app and manually adding the song to a playlist.
 It prefers Spotify playback when available and automatically falls back to Sonos playback when needed.
 
 - Import shortcut: [add-current shortcut](https://www.icloud.com/shortcuts/511ff5126be2452d8369935922f43e97)
