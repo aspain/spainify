@@ -93,7 +93,7 @@ To change service choices later, just re-run setup:
 - Media actions API: `http://localhost:3030`
 - Spotify auth helper (setup flow only): `http://127.0.0.1:8888/login` (via tunnel)
 
-## iOS Shortcut: Add Current Track
+## iOS Shortcut: Add Current Track to Playlist
 
 - Import shortcut: [add-current shortcut](https://www.icloud.com/shortcuts/511ff5126be2452d8369935922f43e97)
 - In the first `Get Contents of` action, replace the host IP with your Pi IP and use `http://<pi-ip>:3030/media-actions-smart`.
