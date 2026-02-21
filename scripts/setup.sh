@@ -350,22 +350,18 @@ prompt_targeted_setup_item() {
     echo >&2
     echo "Choose what to add or modify:" >&2
     echo "  1) add-current (playlist + track-details API)" >&2
-    echo "  2) spotify_display (now-playing display controller)" >&2
-    echo "  3) weather-dashboard" >&2
-    echo "  4) sonos-http-api" >&2
-    echo "  5) sonify-serve (now-playing web UI)" >&2
-    echo "  6) Now-playing Sonos zone" >&2
+    echo "  2) weather-dashboard" >&2
+    echo "  3) Now-playing Sonos zone" >&2
+    echo "  4) spotify_display (now-playing display controller)" >&2
     read -r -p "Choose item: [1] " choice || true
     choice="${choice:-1}"
 
     case "$choice" in
       1) printf 'ENABLE_ADD_CURRENT'; return ;;
-      2) printf 'ENABLE_SPOTIFY_DISPLAY'; return ;;
-      3) printf 'ENABLE_WEATHER_DASHBOARD'; return ;;
-      4) printf 'ENABLE_SONOS_HTTP_API'; return ;;
-      5) printf 'ENABLE_SONIFY_SERVE'; return ;;
-      6) printf 'SONOS_ROOM'; return ;;
-      *) echo "Please enter a number from 1 to 6." >&2 ;;
+      2) printf 'ENABLE_WEATHER_DASHBOARD'; return ;;
+      3) printf 'SONOS_ROOM'; return ;;
+      4) printf 'ENABLE_SPOTIFY_DISPLAY'; return ;;
+      *) echo "Please enter a number from 1 to 4." >&2 ;;
     esac
   done
 }
@@ -1090,24 +1086,16 @@ else
     ENABLE_ADD_CURRENT)
       if [[ "$ENABLE_ADD_CURRENT" == "1" ]]; then
         configure_add_current_prompt="1"
-        configure_room_prompt="1"
       fi
       ;;
     ENABLE_SPOTIFY_DISPLAY)
       if [[ "$ENABLE_SPOTIFY_DISPLAY" == "1" ]]; then
-        configure_room_prompt="1"
         configure_cursor_prompt="1"
       fi
       ;;
     ENABLE_WEATHER_DASHBOARD)
       if [[ "$ENABLE_WEATHER_DASHBOARD" == "1" ]]; then
         configure_weather_prompt="1"
-      fi
-      ;;
-    ENABLE_SONIFY_SERVE)
-      if [[ "$ENABLE_SONIFY_SERVE" == "1" ]]; then
-        configure_room_prompt="1"
-        configure_sonify_prompt="1"
       fi
       ;;
     SONOS_ROOM)
@@ -1281,18 +1269,10 @@ else
       if [[ "$ENABLE_SPOTIFY_DISPLAY" == "1" ]]; then
         WRITE_SPOTIFY_DISPLAY_ENV="1"
       fi
-      if [[ "$ENABLE_SONIFY_SERVE" == "1" ]]; then
-        WRITE_SONIFY_ENV_LOCAL="1"
-      fi
       ;;
     ENABLE_WEATHER_DASHBOARD)
       if [[ "$ENABLE_WEATHER_DASHBOARD" == "1" ]]; then
         WRITE_WEATHER_ENV="1"
-      fi
-      ;;
-    ENABLE_SONIFY_SERVE)
-      if [[ "$ENABLE_SONIFY_SERVE" == "1" ]]; then
-        WRITE_SONIFY_ENV_LOCAL="1"
       fi
       ;;
     SONOS_ROOM)
@@ -1364,13 +1344,6 @@ if [[ "$SETUP_MODE" == "targeted" ]]; then
         add_redeploy_scope_key ENABLE_SPOTIFY_DISPLAY
       fi
       ;;
-    ENABLE_SONOS_HTTP_API)
-      add_redeploy_scope_key ENABLE_SONOS_HTTP_API
-      ;;
-    ENABLE_SONIFY_SERVE)
-      add_redeploy_scope_key ENABLE_SONIFY_SERVE
-      add_redeploy_scope_key ENABLE_SONOS_HTTP_API
-      ;;
     SONOS_ROOM)
       if [[ "$ENABLE_SPOTIFY_DISPLAY" == "1" ]]; then
         add_redeploy_scope_key ENABLE_SPOTIFY_DISPLAY
@@ -1392,8 +1365,6 @@ if [[ "$SETUP_MODE" == "targeted" ]]; then
     ENABLE_ADD_CURRENT) redeploy_prompt="Deploy changes for add-current now?" ;;
     ENABLE_SPOTIFY_DISPLAY) redeploy_prompt="Deploy changes for spotify_display now?" ;;
     ENABLE_WEATHER_DASHBOARD) redeploy_prompt="Deploy changes for weather-dashboard now?" ;;
-    ENABLE_SONOS_HTTP_API) redeploy_prompt="Deploy changes for sonos-http-api now?" ;;
-    ENABLE_SONIFY_SERVE) redeploy_prompt="Deploy changes for sonify-serve now?" ;;
     SONOS_ROOM) redeploy_prompt="Deploy changes for Now-playing Sonos zone now?" ;;
     *) redeploy_prompt="Deploy selected changes now?" ;;
   esac
