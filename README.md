@@ -122,11 +122,6 @@ cd /path/to/spainify
 ./scripts/setup-remote.sh <pi-user>@<pi-ip>
 ```
 
-When the remote repo has local changes during setup, choose:
-- default interactive prompt (`auto-stash`, `discard`, `cancel`)
-- `--auto-stash` for non-interactive stash-before-pull
-- `--discard-local` for non-interactive discard-before-pull
-
 For multi-Pi setups, run these commands on each Pi.
 
 ## Command Cheat Sheet
