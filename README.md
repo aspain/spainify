@@ -1,13 +1,22 @@
 # Overview
 A Raspberry Pi home media hub for Spotify/Sonos now-playing display, Sonos controls, local weather at a glance, and more.
 
-**Now-playing examples:**
-![now playing - dead](assets/images/dead.jpeg)
-![now playing - herbie](assets/images/herbie.jpeg)
-
-
-**Weather dashboard example:**
-![weather dashboard](assets/images/weather.jpeg)
+**Examples:**
+<table>
+  <tr>
+    <td align="center">
+      <img src="assets/images/weather.jpeg" alt="weather dashboard" width="230" />
+    </td>
+    <td align="center">
+      <img src="assets/images/herbie.jpeg" alt="now playing - herbie" width="230" />
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center">
+      <img src="assets/images/dead.jpeg" alt="now playing - dead" width="460" />
+    </td>
+  </tr>
+</table>
 
 This project contains a set of locally hosted apps and services with features including:
 - Sonos and Spotify now-playing LCD: displays artist, track title and album artwork with a vibrant, dynamic background color chosen from the album artwork
