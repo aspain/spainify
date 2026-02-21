@@ -111,34 +111,25 @@ To change settings, re-run setup instead of editing files by hand:
 
 ## Redeploy / Update Workflow
 
-For normal code updates on a configured Pi:
+Use this after code changes to pull and redeploy enabled services on a configured Pi:
 
 ```bash
 ssh <pi-user>@<pi-ip> 'cd ~/spainify && git pull --ff-only && ./scripts/redeploy.sh'
 ```
 
-For service or room changes, run setup again:
+Use setup when you need to change service enablement, room selection, or other setup-driven config:
 
 ```bash
 cd /path/to/spainify
 ./scripts/setup-remote.sh <pi-user>@<pi-ip>
 ```
 
-When the remote Pi repo has local changes, `setup-remote.sh` protects the pull step:
-- Interactive prompt by default (`auto-stash`, `discard`, or `cancel`)
-- `--auto-stash` to non-interactively stash local changes before pull
-- `--discard-local` to non-interactively discard local changes before pull
+When the remote repo has local changes during setup, choose:
+- default interactive prompt (`auto-stash`, `discard`, `cancel`)
+- `--auto-stash` for non-interactive stash-before-pull
+- `--discard-local` for non-interactive discard-before-pull
 
-If setup already exists, the wizard asks whether to run full setup or add/modify one specific item.
-
-Targeted mode supports:
-- `media-actions-api` (playlist + track-details + grouping API)
-- `weather-dashboard`
-- `Now-playing Sonos zone`
-
-In targeted mode, setup redeploys only the required service scope instead of running a full redeploy.
-
-For multi-Pi setups, run the same update commands on each Pi. Each Pi keeps its own local `.spainify-device.env`.
+For multi-Pi setups, run these commands on each Pi.
 
 ## Command Cheat Sheet
 
