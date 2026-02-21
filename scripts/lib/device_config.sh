@@ -3,42 +3,42 @@
 # Shared helpers for setup/redeploy scripts.
 
 SPAINIFY_SERVICE_KEYS=(
-  ENABLE_ADD_CURRENT
-  ENABLE_SPOTIFY_DISPLAY
+  ENABLE_MEDIA_ACTIONS_API
+  ENABLE_DISPLAY_CONTROLLER
   ENABLE_WEATHER_DASHBOARD
   ENABLE_SONOS_HTTP_API
-  ENABLE_SONIFY_SERVE
+  ENABLE_SONIFY_UI
 )
 
 spainify_service_unit() {
   case "$1" in
-    ENABLE_ADD_CURRENT) echo "media-actions-api.service" ;;
-    ENABLE_SPOTIFY_DISPLAY) echo "display-controller.service" ;;
+    ENABLE_MEDIA_ACTIONS_API) echo "media-actions-api.service" ;;
+    ENABLE_DISPLAY_CONTROLLER) echo "display-controller.service" ;;
     ENABLE_WEATHER_DASHBOARD) echo "weather-dashboard.service" ;;
     ENABLE_SONOS_HTTP_API) echo "sonos-http-api.service" ;;
-    ENABLE_SONIFY_SERVE) echo "sonify-ui.service" ;;
+    ENABLE_SONIFY_UI) echo "sonify-ui.service" ;;
     *) return 1 ;;
   esac
 }
 
 spainify_service_prompt() {
   case "$1" in
-    ENABLE_ADD_CURRENT) echo "Enable media-actions-api (playlist + track-details + grouping API)" ;;
-    ENABLE_SPOTIFY_DISPLAY) echo "Enable display controller (display-controller)" ;;
+    ENABLE_MEDIA_ACTIONS_API) echo "Enable media-actions-api (playlist + track-details + grouping API)" ;;
+    ENABLE_DISPLAY_CONTROLLER) echo "Enable display controller (display-controller)" ;;
     ENABLE_WEATHER_DASHBOARD) echo "Enable weather dashboard" ;;
     ENABLE_SONOS_HTTP_API) echo "Enable Sonos API service" ;;
-    ENABLE_SONIFY_SERVE) echo "Enable now-playing web UI (sonify-ui)" ;;
+    ENABLE_SONIFY_UI) echo "Enable now-playing web UI (sonify-ui)" ;;
     *) return 1 ;;
   esac
 }
 
 spainify_service_default() {
   case "$1" in
-    ENABLE_ADD_CURRENT) echo "0" ;;
-    ENABLE_SPOTIFY_DISPLAY) echo "1" ;;
+    ENABLE_MEDIA_ACTIONS_API) echo "0" ;;
+    ENABLE_DISPLAY_CONTROLLER) echo "1" ;;
     ENABLE_WEATHER_DASHBOARD) echo "0" ;;
     ENABLE_SONOS_HTTP_API) echo "1" ;;
-    ENABLE_SONIFY_SERVE) echo "1" ;;
+    ENABLE_SONIFY_UI) echo "1" ;;
     *) return 1 ;;
   esac
 }
@@ -108,17 +108,17 @@ spainify_read_env_value() {
 spainify_apply_service_dependencies() {
   local messages=()
 
-  if [[ "${ENABLE_SPOTIFY_DISPLAY:-0}" == "1" && "${ENABLE_SONIFY_SERVE:-0}" != "1" ]]; then
-    ENABLE_SONIFY_SERVE="1"
+  if [[ "${ENABLE_DISPLAY_CONTROLLER:-0}" == "1" && "${ENABLE_SONIFY_UI:-0}" != "1" ]]; then
+    ENABLE_SONIFY_UI="1"
     messages+=("Enabled sonify-ui because display-controller is enabled.")
   fi
 
-  if [[ "${ENABLE_SPOTIFY_DISPLAY:-0}" == "1" && "${ENABLE_SONOS_HTTP_API:-0}" != "1" ]]; then
+  if [[ "${ENABLE_DISPLAY_CONTROLLER:-0}" == "1" && "${ENABLE_SONOS_HTTP_API:-0}" != "1" ]]; then
     ENABLE_SONOS_HTTP_API="1"
     messages+=("Enabled sonos-http-api because display-controller is enabled.")
   fi
 
-  if [[ "${ENABLE_SONIFY_SERVE:-0}" == "1" && "${ENABLE_SONOS_HTTP_API:-0}" != "1" ]]; then
+  if [[ "${ENABLE_SONIFY_UI:-0}" == "1" && "${ENABLE_SONOS_HTTP_API:-0}" != "1" ]]; then
     ENABLE_SONOS_HTTP_API="1"
     messages+=("Enabled sonos-http-api because sonify-ui is enabled.")
   fi

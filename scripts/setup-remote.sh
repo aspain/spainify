@@ -16,7 +16,7 @@ Options:
   -h, --help          Show this help
 
 Example:
-  ./scripts/setup-remote.sh aspain@192.168.4.96 --fresh
+  ./scripts/setup-remote.sh <pi-user>@<pi-ip> --fresh
 EOF
 }
 
@@ -150,10 +150,10 @@ git pull --ff-only
 if [[ "$FRESH" == "1" ]]; then
   rm -f .spainify-device.env \
     .spainify-sonos-rooms.cache \
-    apps/add-current/.env \
-    apps/spotify-display/.env \
+    apps/media-actions-api/.env \
+    apps/display-controller/.env \
     apps/weather-dashboard/.env \
-    apps/sonify/.env.local
+    apps/sonify-ui/.env.local
 fi
 
 ./setup.sh

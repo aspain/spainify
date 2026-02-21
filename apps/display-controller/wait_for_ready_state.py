@@ -53,7 +53,7 @@ def main():
     timeout_seconds = int(os.getenv("STARTUP_READY_TIMEOUT_SECONDS", str(DEFAULT_TIMEOUT_SECONDS)))
     deadline = time.monotonic() + timeout_seconds
     require_weather = _env_bool("ENABLE_WEATHER_DASHBOARD", True)
-    require_sonify = _env_bool("ENABLE_SONIFY_SERVE", True)
+    require_sonify = _env_bool("ENABLE_SONIFY_UI", True)
 
     display_socket = _parse_display_socket_path(os.getenv("DISPLAY", ":0"))
 

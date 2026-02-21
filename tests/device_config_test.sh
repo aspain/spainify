@@ -41,21 +41,21 @@ EOF_ENV
 }
 
 test_dependencies() {
-  ENABLE_ADD_CURRENT=0
-  ENABLE_SPOTIFY_DISPLAY=1
+  ENABLE_MEDIA_ACTIONS_API=0
+  ENABLE_DISPLAY_CONTROLLER=1
   ENABLE_WEATHER_DASHBOARD=0
   ENABLE_SONOS_HTTP_API=0
-  ENABLE_SONIFY_SERVE=0
+  ENABLE_SONIFY_UI=0
   spainify_apply_service_dependencies >/dev/null
 
-  assert_eq "1" "$ENABLE_SONIFY_SERVE" "display implies sonify"
+  assert_eq "1" "$ENABLE_SONIFY_UI" "display implies sonify"
   assert_eq "1" "$ENABLE_SONOS_HTTP_API" "display implies sonos api"
 
-  ENABLE_ADD_CURRENT=0
-  ENABLE_SPOTIFY_DISPLAY=0
+  ENABLE_MEDIA_ACTIONS_API=0
+  ENABLE_DISPLAY_CONTROLLER=0
   ENABLE_WEATHER_DASHBOARD=0
   ENABLE_SONOS_HTTP_API=0
-  ENABLE_SONIFY_SERVE=1
+  ENABLE_SONIFY_UI=1
   spainify_apply_service_dependencies >/dev/null
 
   assert_eq "1" "$ENABLE_SONOS_HTTP_API" "sonify implies sonos api"

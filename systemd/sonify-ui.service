@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=simple
 User=__SPAINIFY_USER__
-WorkingDirectory=__SPAINIFY_ROOT__/apps/sonify
+WorkingDirectory=__SPAINIFY_ROOT__/apps/sonify-ui
 ExecStart=/usr/bin/npm run serve:prod
 Restart=always
 Environment=PATH=/usr/bin:/usr/local/bin

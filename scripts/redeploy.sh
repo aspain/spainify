@@ -14,7 +14,7 @@ Usage:
 
 Options:
   --only <keys>   Redeploy only selected service keys (for example:
-                  ENABLE_WEATHER_DASHBOARD,ENABLE_SPOTIFY_DISPLAY)
+                  ENABLE_WEATHER_DASHBOARD,ENABLE_DISPLAY_CONTROLLER)
   -h, --help      Show this help
 EOF
 }
@@ -61,18 +61,6 @@ render_and_install_unit() {
     "$src" > "$tmp"
   sudo install -m 0644 "$tmp" "$dst"
   rm -f "$tmp"
-}
-
-retire_legacy_unit() {
-  local unit="$1"
-  local unit_path="/etc/systemd/system/$unit"
-
-  if sudo test -e "$unit_path"; then
-    echo "----> retiring legacy unit $unit"
-    sudo systemctl stop "$unit" >/dev/null 2>&1 || true
-    sudo systemctl disable "$unit" >/dev/null 2>&1 || true
-    sudo rm -f "$unit_path"
-  fi
 }
 
 ensure_sonos_http_api_layout() {
@@ -141,7 +129,7 @@ if [[ -n "$REDEPLOY_ONLY_RAW" ]]; then
     key="$(spainify_trim "$key")"
     [[ -z "$key" ]] && continue
     case "$key" in
-      ENABLE_ADD_CURRENT|ENABLE_SPOTIFY_DISPLAY|ENABLE_WEATHER_DASHBOARD|ENABLE_SONOS_HTTP_API|ENABLE_SONIFY_SERVE)
+      ENABLE_MEDIA_ACTIONS_API|ENABLE_DISPLAY_CONTROLLER|ENABLE_WEATHER_DASHBOARD|ENABLE_SONOS_HTTP_API|ENABLE_SONIFY_UI)
         REDEPLOY_SCOPE_MAP["$key"]="1"
         ;;
       *)
@@ -214,17 +202,17 @@ fi
 
 echo
 echo "==> Installing Node dependencies..."
-if scope_includes ENABLE_ADD_CURRENT && service_enabled ENABLE_ADD_CURRENT; then
-  echo "----> npm install in apps/add-current (media-actions-api)"
-  (cd apps/add-current && npm install --no-audit --no-fund --loglevel=error)
+if scope_includes ENABLE_MEDIA_ACTIONS_API && service_enabled ENABLE_MEDIA_ACTIONS_API; then
+  echo "----> npm install in apps/media-actions-api (media-actions-api)"
+  (cd apps/media-actions-api && npm install --no-audit --no-fund --loglevel=error)
 fi
 if scope_includes ENABLE_WEATHER_DASHBOARD && service_enabled ENABLE_WEATHER_DASHBOARD; then
   echo "----> npm install in apps/weather-dashboard"
   (cd apps/weather-dashboard && npm install --legacy-peer-deps --no-audit --no-fund --loglevel=error)
 fi
-if scope_includes ENABLE_SONIFY_SERVE && service_enabled ENABLE_SONIFY_SERVE; then
-  echo "----> npm install in apps/sonify"
-  (cd apps/sonify && npm install --no-audit --no-fund --loglevel=error)
+if scope_includes ENABLE_SONIFY_UI && service_enabled ENABLE_SONIFY_UI; then
+  echo "----> npm install in apps/sonify-ui"
+  (cd apps/sonify-ui && npm install --no-audit --no-fund --loglevel=error)
 fi
 if scope_includes ENABLE_SONOS_HTTP_API && service_enabled ENABLE_SONOS_HTTP_API; then
   ensure_sonos_http_api_layout
@@ -233,9 +221,9 @@ if scope_includes ENABLE_SONOS_HTTP_API && service_enabled ENABLE_SONOS_HTTP_API
 fi
 
 echo
-if scope_includes ENABLE_SPOTIFY_DISPLAY && service_enabled ENABLE_SPOTIFY_DISPLAY; then
+if scope_includes ENABLE_DISPLAY_CONTROLLER && service_enabled ENABLE_DISPLAY_CONTROLLER; then
   echo "==> Installing Python dependencies for display-controller (backend/venv)..."
-  REQ_FILE=apps/spotify-display/requirements.txt
+  REQ_FILE=apps/display-controller/requirements.txt
   VENV_DIR=backend/venv
 
   if [[ -f "$REQ_FILE" ]]; then
@@ -270,8 +258,8 @@ else
   echo "----> skipping weather-dashboard build (not in scope or service disabled)"
 fi
 
-if scope_includes ENABLE_SONIFY_SERVE && service_enabled ENABLE_SONIFY_SERVE; then
-  run_quiet_build "sonify" "apps/sonify"
+if scope_includes ENABLE_SONIFY_UI && service_enabled ENABLE_SONIFY_UI; then
+  run_quiet_build "sonify" "apps/sonify-ui"
 else
   echo "----> skipping sonify build (not in scope or service disabled)"
 fi
@@ -283,10 +271,6 @@ render_and_install_unit systemd/display-controller.service /etc/systemd/system/d
 render_and_install_unit systemd/weather-dashboard.service  /etc/systemd/system/weather-dashboard.service
 render_and_install_unit systemd/sonos-http-api.service     /etc/systemd/system/sonos-http-api.service
 render_and_install_unit systemd/sonify-ui.service          /etc/systemd/system/sonify-ui.service
-
-retire_legacy_unit add-current.service
-retire_legacy_unit spotify_display.service
-retire_legacy_unit sonify-serve.service
 
 sudo systemctl daemon-reload
 

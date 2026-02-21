@@ -537,7 +537,7 @@ app.get("/spotify-track/:trackId", async (req, res) => {
 });
 
 // Smart behavior: add currently playing song to indiepop vibez playlist - try Spotify first; if empty, fall back to Sonos (music-only)
-app.get("/add-current-smart", async (req, res) => {
+app.get("/media-actions-smart", async (req, res) => {
   try {
     // 1) Spotify currently playing
     let picked = await getSpotifyCurrentlyPlayingTrack();

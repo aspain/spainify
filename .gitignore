@@ -3,7 +3,7 @@ node_modules/
 apps/*/node_modules/
 
 # Python venv
-apps/spotify-display/venv/
+apps/display-controller/venv/
 
 # Build artifacts
 **/build/
@@ -13,8 +13,8 @@ apps/spotify-display/venv/
 cache/
 
 # Local runtime data
-apps/spotify-display/chromium_sonify/
-apps/spotify-display/chromium_weather/
+apps/display-controller/chromium_sonify/
+apps/display-controller/chromium_weather/
 
 # Logs
 *.log
@@ -23,9 +23,9 @@ apps/spotify-display/chromium_weather/
 .env
 .env.*
 *.env
-!apps/spotify-display/.env.example
-!apps/sonify/.env.local.example
-!apps/add-current/.env.example
+!apps/display-controller/.env.example
+!apps/sonify-ui/.env.local.example
+!apps/media-actions-api/.env.example
 !apps/weather-dashboard/.env.example
 
 # OS/editor cruft

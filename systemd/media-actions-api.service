@@ -6,9 +6,9 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=__SPAINIFY_USER__
-WorkingDirectory=__SPAINIFY_ROOT__/apps/add-current
-EnvironmentFile=__SPAINIFY_ROOT__/apps/add-current/.env
-ExecStart=/usr/bin/node __SPAINIFY_ROOT__/apps/add-current/server.js
+WorkingDirectory=__SPAINIFY_ROOT__/apps/media-actions-api
+EnvironmentFile=__SPAINIFY_ROOT__/apps/media-actions-api/.env
+ExecStart=/usr/bin/node __SPAINIFY_ROOT__/apps/media-actions-api/server.js
 Restart=always
 RestartSec=3
 Environment=NODE_ENV=production
