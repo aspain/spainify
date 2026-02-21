@@ -705,11 +705,10 @@ def main():
                         chromium_process = new_process
                         browser_url = 'sonify'
                         sanitize_next_launch = False
+                        display_on = turn_display_on()
                     else:
                         chromium_process = None
                         browser_url = None
-                    if not display_on:
-                        display_on = turn_display_on()
             else:
                 # Nothing is playing on Sonos
                 if ENABLE_WEATHER_DASHBOARD and _is_within_daily_window(
@@ -731,11 +730,10 @@ def main():
                             chromium_process = new_process
                             browser_url = 'weather'
                             sanitize_next_launch = False
+                            display_on = turn_display_on()
                         else:
                             chromium_process = None
                             browser_url = None
-                        if not display_on:
-                            display_on = turn_display_on()
                 else:
                     # Outside weather hours; ensure display is off
                     if display_on:
