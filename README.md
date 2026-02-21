@@ -124,6 +124,11 @@ cd /path/to/spainify
 ./scripts/setup-remote.sh <pi-user>@<pi-ip>
 ```
 
+If the remote Pi repo has local changes, `setup-remote.sh` now protects the pull step:
+- Interactive prompt by default (`auto-stash`, `discard`, or `cancel`)
+- `--auto-stash` to non-interactively stash local changes before pull
+- `--discard-local` to non-interactively discard local changes before pull
+
 If setup already exists, the wizard asks whether to run full setup or add/modify one specific item.
 
 Targeted mode supports:
@@ -148,6 +153,9 @@ sudo systemctl restart display-controller.service
 
 # Restart all services
 sudo systemctl restart media-actions-api.service sonos-http-api.service sonify-ui.service display-controller.service weather-dashboard.service
+
+# Run full post-deploy healthcheck on the Pi
+./scripts/healthcheck.sh
 ```
 
 ## Security Notes

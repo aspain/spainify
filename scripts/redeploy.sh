@@ -203,21 +203,21 @@ fi
 echo
 echo "==> Installing Node dependencies..."
 if scope_includes ENABLE_MEDIA_ACTIONS_API && service_enabled ENABLE_MEDIA_ACTIONS_API; then
-  echo "----> npm install in apps/media-actions-api (media-actions-api)"
-  (cd apps/media-actions-api && npm install --no-audit --no-fund --loglevel=error)
+  echo "----> npm ci in apps/media-actions-api (media-actions-api)"
+  (cd apps/media-actions-api && npm ci --no-audit --no-fund --loglevel=error)
 fi
 if scope_includes ENABLE_WEATHER_DASHBOARD && service_enabled ENABLE_WEATHER_DASHBOARD; then
-  echo "----> npm install in apps/weather-dashboard"
-  (cd apps/weather-dashboard && npm install --legacy-peer-deps --no-audit --no-fund --loglevel=error)
+  echo "----> npm ci in apps/weather-dashboard"
+  (cd apps/weather-dashboard && npm ci --legacy-peer-deps --no-audit --no-fund --loglevel=error)
 fi
 if scope_includes ENABLE_SONIFY_UI && service_enabled ENABLE_SONIFY_UI; then
-  echo "----> npm install in apps/sonify-ui"
-  (cd apps/sonify-ui && npm install --no-audit --no-fund --loglevel=error)
+  echo "----> npm ci in apps/sonify-ui"
+  (cd apps/sonify-ui && npm ci --no-audit --no-fund --loglevel=error)
 fi
 if scope_includes ENABLE_SONOS_HTTP_API && service_enabled ENABLE_SONOS_HTTP_API; then
   ensure_sonos_http_api_layout
-  echo "----> npm install in apps/sonos-http-api"
-  (cd apps/sonos-http-api && npm install --no-audit --no-fund --loglevel=error)
+  echo "----> npm ci in apps/sonos-http-api"
+  (cd apps/sonos-http-api && npm ci --no-audit --no-fund --loglevel=error)
 fi
 
 echo
