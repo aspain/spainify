@@ -751,13 +751,27 @@ print_spotify_setup_help() {
   host_ip="$(first_ipv4_address)"
 
   echo "Spotify app setup (for add-current):"
-  echo "  Dashboard: https://developer.spotify.com/dashboard"
-  echo "  Add these Redirect URI values in your Spotify app settings:"
-  echo "    - http://127.0.0.1:8888/callback"
+  echo "  1) Create/sign in to your Spotify developer account:"
+  echo "     https://developer.spotify.com/dashboard"
+  echo "  2) Create an app and add these Redirect URI values in app settings:"
+  echo "     - http://127.0.0.1:8888/callback"
   if [[ -n "$host_ip" ]]; then
-    echo "    - http://$host_ip:8888/callback"
+    echo "     - http://$host_ip:8888/callback"
+  else
+    echo "     - http://<your-pi-ip>:8888/callback (example: http://192.168.4.96:8888/callback)"
   fi
+  echo "  3) Copy the app Client ID and Client Secret into setup prompts."
   echo "  Setup will launch Spotify login and capture refresh token automatically."
+}
+
+print_openweather_setup_help() {
+  echo "OpenWeather setup (for weather-dashboard):"
+  echo "  1) Create/sign in to your OpenWeather account:"
+  echo "     https://home.openweathermap.org/api_keys"
+  echo "  2) Create an API key and paste it at the OpenWeather API key prompt."
+  echo "  3) For location, use a specific query to avoid duplicate city names:"
+  echo "     - US format: City,StateCode,US (example: Springfield,IL,US)"
+  echo "     - International format: City,CountryCode (example: London,GB)"
 }
 
 start_spotify_auth_helper() {
@@ -1201,8 +1215,10 @@ WEATHER_DISPLAY_END="$(read_existing_or_default "$weather_env_file" "WEATHER_DIS
 if [[ "$configure_weather_prompt" == "1" && "$ENABLE_WEATHER_DASHBOARD" == "1" ]]; then
   echo
   echo "Configure weather dashboard values:"
+  print_openweather_setup_help
+  echo
   WEATHER_API_KEY="$(prompt_required_text "OpenWeather API key" "$WEATHER_API_KEY")"
-  WEATHER_CITY="$(prompt_required_text "Weather city" "$WEATHER_CITY")"
+  WEATHER_CITY="$(prompt_required_text "Weather location query (example: Springfield,IL,US)" "$WEATHER_CITY")"
   WEATHER_DISPLAY_START="$(prompt_time_hhmm "Enter weather display start time (example: 7:00am)" "$WEATHER_DISPLAY_START")"
   WEATHER_DISPLAY_END="$(prompt_time_hhmm "Enter weather display end time (example: 9:00am)" "$WEATHER_DISPLAY_END")"
 fi

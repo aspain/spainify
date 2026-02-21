@@ -40,6 +40,23 @@ If `add-current` is enabled, it also handles Spotify auth through the tunneled l
 Now-playing works without Spotify credentials.
 Spotify credentials are only required for add-to-playlist and optional metadata enrichment (via `add-current`).
 
+Before running setup, gather API credentials:
+
+1. OpenWeather (weather-dashboard)
+   - Create/sign in and generate an API key at https://home.openweathermap.org/api_keys
+   - Paste that value into the `OpenWeather API key` setup prompt.
+   - For city/location input, use a specific OpenWeather query when names are duplicated:
+     - US: `City,StateCode,US` (example: `Springfield,IL,US`)
+     - Outside US: `City,CountryCode` (example: `London,GB`)
+   - If your city name is unique, a plain city name can work, but `City,StateCode,US` is more reliable.
+
+2. Spotify (add-current)
+   - Create/sign in to Spotify Developer and open the dashboard: https://developer.spotify.com/dashboard
+   - Create an app and add both redirect URIs:
+     - `http://127.0.0.1:8888/callback`
+     - `http://192.168.4.96:8888/callback` (or replace with your Pi IP)
+   - Copy `Client ID` and `Client Secret` into setup prompts.
+
 Optional: run setup directly on the Pi (for local desktop use):
 
 ```bash

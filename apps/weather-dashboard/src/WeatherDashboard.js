@@ -25,6 +25,7 @@ export default function WeatherDashboard() {
 
   const city = process.env.REACT_APP_CITY;
   const apiKey = process.env.REACT_APP_OPENWEATHER_API_KEY;
+  const locationQuery = encodeURIComponent(city || '');
 
   useEffect(() => {
     let ignoreResult = false;
@@ -33,10 +34,10 @@ export default function WeatherDashboard() {
       try {
         const timestamp = Date.now();
         const currentRes = await fetch(
-          `https://api.openweathermap.org/data/2.5/weather?q=${city}&units=imperial&appid=${apiKey}&t=${timestamp}`
+          `https://api.openweathermap.org/data/2.5/weather?q=${locationQuery}&units=imperial&appid=${apiKey}&t=${timestamp}`
         );
         const forecastRes = await fetch(
-          `https://api.openweathermap.org/data/2.5/forecast?q=${city}&units=imperial&appid=${apiKey}`
+          `https://api.openweathermap.org/data/2.5/forecast?q=${locationQuery}&units=imperial&appid=${apiKey}`
         );
 
         if (!currentRes.ok || !forecastRes.ok) {
@@ -70,7 +71,7 @@ export default function WeatherDashboard() {
       ignoreResult = true;
       clearInterval(intervalId);
     };
-  }, [apiKey, city]);
+  }, [apiKey, locationQuery]);
 
   if (loading) {
     return <div className="weather-dashboard--state weather-dashboard--loading">Loading...</div>;
