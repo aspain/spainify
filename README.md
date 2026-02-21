@@ -93,6 +93,16 @@ To change service choices later, just re-run setup:
 - Media actions API: `http://localhost:3030`
 - Spotify auth helper (setup flow only): `http://127.0.0.1:8888/login` (via tunnel)
 
+## iOS Shortcut: Add Current Track
+
+- Import shortcut: [add-current shortcut](https://www.icloud.com/shortcuts/511ff5126be2452d8369935922f43e97)
+- In the first `Get Contents of` action, replace the host IP with your Pi IP and use `http://<pi-ip>:3030/media-actions-smart`.
+- `/media-actions-smart` checks Spotify current playback first.
+- If Spotify is empty, it falls back to the best active Sonos zone and extracts Spotify track URI/ID.
+- In default `music` mode, it ignores TV/line-in sources.
+- It applies de-duplication (recent-add memory + playlist membership check) before adding.
+- It adds to the playlist configured by setup prompt `Spotify playlist link or ID for media-actions-api (/media-actions-smart)`.
+
 ## Redeploy / Update Workflow
 
 Use this after code changes to pull and redeploy enabled services on a configured Pi:
