@@ -248,7 +248,7 @@ prompt_required_text() {
       printf '%s' "$value"
       return
     fi
-    echo "Value is required."
+    echo "Value is required." >&2
   done
 }
 
@@ -559,10 +559,10 @@ prompt_openweather_location_query() {
   esac
 
   while true; do
-    echo "Choose weather location input mode:"
-    echo "  1) US city + state (recommended for US)"
-    echo "  2) International city + country"
-    echo "  3) Raw OpenWeather query (advanced)"
+    echo "Choose weather location input mode:" >&2
+    echo "  1) US city + state (recommended for US)" >&2
+    echo "  2) International city + country" >&2
+    echo "  3) Raw OpenWeather query (advanced)" >&2
     read -r -p "Mode: [$mode_choice] " mode_label || true
     mode_label="${mode_label:-$mode_choice}"
     mode_label="$(spainify_trim "$mode_label")"
@@ -572,7 +572,7 @@ prompt_openweather_location_query() {
         break
         ;;
       *)
-        echo "Please enter 1, 2, or 3."
+        echo "Please enter 1, 2, or 3." >&2
         ;;
     esac
   done
@@ -586,7 +586,7 @@ prompt_openweather_location_query() {
         if [[ "$state" =~ ^[A-Z]{2}$ ]]; then
           break
         fi
-        echo "Please enter a 2-letter US state code (example: MD)."
+        echo "Please enter a 2-letter US state code (example: MD)." >&2
       done
       query="$(normalize_openweather_location_query "$city,$state,US")"
       ;;
@@ -598,7 +598,7 @@ prompt_openweather_location_query() {
         if [[ "$country" =~ ^[A-Z]{2}$ ]]; then
           break
         fi
-        echo "Please enter a 2-letter country code (example: GB)."
+        echo "Please enter a 2-letter country code (example: GB)." >&2
       done
       query="$(normalize_openweather_location_query "$city,$country")"
       ;;
@@ -609,7 +609,7 @@ prompt_openweather_location_query() {
   esac
 
   if [[ -z "$query" ]]; then
-    echo "Weather location query is required."
+    echo "Weather location query is required." >&2
     return 1
   fi
   printf '%s' "$query"
