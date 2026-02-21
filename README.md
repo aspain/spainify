@@ -76,11 +76,12 @@ To change service choices later, just re-run setup:
 
 ## Apps and Services
 
-- `apps/sonos-http-api` — Sonos HTTP API backend (includes local `/album-art` proxy)
-- `apps/add-current` — media actions API (playlist add + metadata + Sonos grouping)
-- `apps/spotify-display` — Python display controller (power, browser, mode switching)
-- `apps/sonify` — now-playing web UI
-- `apps/weather-dashboard` — weather web UI
+- `media-actions-api.service` — playlist add + metadata + Sonos grouping API
+- `display-controller.service` — Python display controller (power, browser, mode switching)
+- `sonify-ui.service` — now-playing web UI host
+- `sonos-http-api.service` — Sonos HTTP API backend (includes local `/album-art` proxy)
+- `weather-dashboard.service` — weather web UI host
+- Source app directories live under `apps/` (for example `apps/add-current`, `apps/spotify-display`, `apps/sonify`)
 - `systemd/` — service unit templates
 - `scripts/redeploy.sh` — deploy/restart enabled services for this Pi
 
