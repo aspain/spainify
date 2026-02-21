@@ -140,32 +140,29 @@ In targeted mode, setup redeploys only the required service scope instead of run
 
 For multi-Pi setups, run the same update commands on each Pi. Each Pi keeps its own local `.spainify-device.env`.
 
-## Service Commands
+## Command Cheat Sheet
+
+Use these for checks and troubleshooting after setup.
 
 ```bash
-# Status of all core services
-for s in media-actions-api sonos-http-api sonify-ui display-controller weather-dashboard; do
-  printf "%-20s active=%-8s enabled=%s\n" "$s" "$(systemctl is-active "$s".service)" "$(systemctl is-enabled "$s".service)"
-done
+# Run full post-deploy healthcheck
+ssh <pi-user>@<pi-ip> 'cd ~/spainify && ./scripts/healthcheck.sh'
+
+# Check service status quickly
+ssh <pi-user>@<pi-ip> 'for s in media-actions-api display-controller weather-dashboard sonos-http-api sonify-ui; do printf "%-20s active=%-8s enabled=%s\n" "$s" "$(systemctl is-active "$s".service)" "$(systemctl is-enabled "$s".service)"; done'
 
 # Restart one service
-sudo systemctl restart display-controller.service
+ssh <pi-user>@<pi-ip> 'sudo systemctl restart display-controller.service'
 
-# Restart all services
-sudo systemctl restart media-actions-api.service sonos-http-api.service sonify-ui.service display-controller.service weather-dashboard.service
+# Restart all core services
+ssh <pi-user>@<pi-ip> 'sudo systemctl restart media-actions-api.service display-controller.service weather-dashboard.service sonos-http-api.service sonify-ui.service'
 
-# Run full post-deploy healthcheck on the Pi
-./scripts/healthcheck.sh
-```
+# Tail logs for a specific service
+ssh <pi-user>@<pi-ip> 'journalctl -u media-actions-api.service -f -n 100'
 
-## Security Notes
-
-- `.env` files are git-ignored.
-- Never commit Spotify/OpenWeather secrets or tokens.
-- If you rotate credentials, re-run setup (or update local `.env` files) and then run:
-
-```bash
-./scripts/redeploy.sh
+# API smoke checks from Pi
+ssh <pi-user>@<pi-ip> 'curl -sS http://127.0.0.1:3030/health; echo'
+ssh <pi-user>@<pi-ip> 'curl -sS http://127.0.0.1:3030/media-actions-smart; echo'
 ```
 
 ---
