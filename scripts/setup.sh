@@ -950,10 +950,10 @@ print_openweather_setup_help() {
   echo "  1) Create/sign in to your OpenWeather account:"
   echo "     https://home.openweathermap.org/api_keys"
   echo "  2) Create an API key and paste it at the OpenWeather API key prompt."
-  echo "  3) For location, use a specific query to avoid duplicate city names:"
-  echo "     - US format: City,StateCode,US (example: Springfield,IL,US)"
-  echo "     - International format: City,CountryCode (example: London,GB)"
-  echo "     - Extra spaces and lowercase codes are okay; setup normalizes them."
+  echo "  3) Setup will guide location input:"
+  echo "     - US mode: City + 2-letter state code (saved as City,ST,US)"
+  echo "     - International mode: City + 2-letter country code (saved as City,CC)"
+  echo "     - Advanced mode: raw OpenWeather query"
 }
 
 start_spotify_auth_helper() {
