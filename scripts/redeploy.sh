@@ -63,6 +63,18 @@ render_and_install_unit() {
   rm -f "$tmp"
 }
 
+retire_legacy_unit() {
+  local unit="$1"
+  local unit_path="/etc/systemd/system/$unit"
+
+  if sudo test -e "$unit_path"; then
+    echo "----> retiring legacy unit $unit"
+    sudo systemctl stop "$unit" >/dev/null 2>&1 || true
+    sudo systemctl disable "$unit" >/dev/null 2>&1 || true
+    sudo rm -f "$unit_path"
+  fi
+}
+
 ensure_sonos_http_api_layout() {
   local api_dir="$ROOT_DIR/apps/sonos-http-api"
   local presets_dir="$api_dir/presets"
@@ -203,7 +215,7 @@ fi
 echo
 echo "==> Installing Node dependencies..."
 if scope_includes ENABLE_ADD_CURRENT && service_enabled ENABLE_ADD_CURRENT; then
-  echo "----> npm install in apps/add-current"
+  echo "----> npm install in apps/add-current (media-actions-api)"
   (cd apps/add-current && npm install --no-audit --no-fund --loglevel=error)
 fi
 if scope_includes ENABLE_WEATHER_DASHBOARD && service_enabled ENABLE_WEATHER_DASHBOARD; then
@@ -222,7 +234,7 @@ fi
 
 echo
 if scope_includes ENABLE_SPOTIFY_DISPLAY && service_enabled ENABLE_SPOTIFY_DISPLAY; then
-  echo "==> Installing Python dependencies for Spotify display (backend/venv)..."
+  echo "==> Installing Python dependencies for display-controller (backend/venv)..."
   REQ_FILE=apps/spotify-display/requirements.txt
   VENV_DIR=backend/venv
 
@@ -247,7 +259,7 @@ if scope_includes ENABLE_SPOTIFY_DISPLAY && service_enabled ENABLE_SPOTIFY_DISPL
     echo "----> no $REQ_FILE found; skipping Python deps"
   fi
 else
-  echo "==> Spotify display not in redeploy scope or disabled; skipping Python dependency step."
+  echo "==> display-controller not in redeploy scope or disabled; skipping Python dependency step."
 fi
 
 echo
@@ -266,11 +278,15 @@ fi
 
 echo
 echo "==> Updating systemd unit files from repo..."
-render_and_install_unit systemd/add-current.service        /etc/systemd/system/add-current.service
-render_and_install_unit systemd/spotify_display.service    /etc/systemd/system/spotify_display.service
+render_and_install_unit systemd/media-actions-api.service  /etc/systemd/system/media-actions-api.service
+render_and_install_unit systemd/display-controller.service /etc/systemd/system/display-controller.service
 render_and_install_unit systemd/weather-dashboard.service  /etc/systemd/system/weather-dashboard.service
 render_and_install_unit systemd/sonos-http-api.service     /etc/systemd/system/sonos-http-api.service
-render_and_install_unit systemd/sonify-serve.service       /etc/systemd/system/sonify-serve.service
+render_and_install_unit systemd/sonify-ui.service          /etc/systemd/system/sonify-ui.service
+
+retire_legacy_unit add-current.service
+retire_legacy_unit spotify_display.service
+retire_legacy_unit sonify-serve.service
 
 sudo systemctl daemon-reload
 

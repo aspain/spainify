@@ -1,5 +1,5 @@
 [Unit]
-Description=Sonos "add current track to Spotify" microservice
+Description=Media Actions API (playlist add, track metadata, grouping)
 After=network-online.target
 Wants=network-online.target
 

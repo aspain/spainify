@@ -1,7 +1,7 @@
 [Unit]
-Description=Spotify Display Control
-After=network-online.target weather-dashboard.service sonify-serve.service sonos-http-api.service
-Wants=network-online.target weather-dashboard.service sonify-serve.service sonos-http-api.service
+Description=Display Controller
+After=network-online.target weather-dashboard.service sonify-ui.service sonos-http-api.service
+Wants=network-online.target weather-dashboard.service sonify-ui.service sonos-http-api.service
 
 [Service]
 Type=simple

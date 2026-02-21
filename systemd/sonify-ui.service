@@ -1,5 +1,5 @@
 [Unit]
-Description=Serve Sonify Vue App
+Description=Serve Sonify UI
 After=network.target
 
 [Service]

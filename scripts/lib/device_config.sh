@@ -12,22 +12,22 @@ SPAINIFY_SERVICE_KEYS=(
 
 spainify_service_unit() {
   case "$1" in
-    ENABLE_ADD_CURRENT) echo "add-current.service" ;;
-    ENABLE_SPOTIFY_DISPLAY) echo "spotify_display.service" ;;
+    ENABLE_ADD_CURRENT) echo "media-actions-api.service" ;;
+    ENABLE_SPOTIFY_DISPLAY) echo "display-controller.service" ;;
     ENABLE_WEATHER_DASHBOARD) echo "weather-dashboard.service" ;;
     ENABLE_SONOS_HTTP_API) echo "sonos-http-api.service" ;;
-    ENABLE_SONIFY_SERVE) echo "sonify-serve.service" ;;
+    ENABLE_SONIFY_SERVE) echo "sonify-ui.service" ;;
     *) return 1 ;;
   esac
 }
 
 spainify_service_prompt() {
   case "$1" in
-    ENABLE_ADD_CURRENT) echo "Enable add-current (playlist + track-details API)" ;;
-    ENABLE_SPOTIFY_DISPLAY) echo "Enable display controller (spotify_display)" ;;
+    ENABLE_ADD_CURRENT) echo "Enable media-actions-api (playlist + track-details + grouping API)" ;;
+    ENABLE_SPOTIFY_DISPLAY) echo "Enable display controller (display-controller)" ;;
     ENABLE_WEATHER_DASHBOARD) echo "Enable weather dashboard" ;;
     ENABLE_SONOS_HTTP_API) echo "Enable Sonos API service" ;;
-    ENABLE_SONIFY_SERVE) echo "Enable now-playing web UI (sonify-serve)" ;;
+    ENABLE_SONIFY_SERVE) echo "Enable now-playing web UI (sonify-ui)" ;;
     *) return 1 ;;
   esac
 }
@@ -110,17 +110,17 @@ spainify_apply_service_dependencies() {
 
   if [[ "${ENABLE_SPOTIFY_DISPLAY:-0}" == "1" && "${ENABLE_SONIFY_SERVE:-0}" != "1" ]]; then
     ENABLE_SONIFY_SERVE="1"
-    messages+=("Enabled sonify-serve because spotify_display is enabled.")
+    messages+=("Enabled sonify-ui because display-controller is enabled.")
   fi
 
   if [[ "${ENABLE_SPOTIFY_DISPLAY:-0}" == "1" && "${ENABLE_SONOS_HTTP_API:-0}" != "1" ]]; then
     ENABLE_SONOS_HTTP_API="1"
-    messages+=("Enabled sonos-http-api because spotify_display is enabled.")
+    messages+=("Enabled sonos-http-api because display-controller is enabled.")
   fi
 
   if [[ "${ENABLE_SONIFY_SERVE:-0}" == "1" && "${ENABLE_SONOS_HTTP_API:-0}" != "1" ]]; then
     ENABLE_SONOS_HTTP_API="1"
-    messages+=("Enabled sonos-http-api because sonify-serve is enabled.")
+    messages+=("Enabled sonos-http-api because sonify-ui is enabled.")
   fi
 
   if (( ${#messages[@]} > 0 )); then

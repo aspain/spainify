@@ -24,6 +24,7 @@ export default {
         }
       },
       spotifyMetadataBaseUrl:
+        process.env.VUE_APP_MEDIA_ACTIONS_BASE ||
         process.env.VUE_APP_ADD_CURRENT_BASE || 'http://localhost:3030',
       spotifyTrackMetaCache: Object.create(null),
       spotifyTrackMetaInFlight: Object.create(null)

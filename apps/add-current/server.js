@@ -513,7 +513,7 @@ app.get("/spotify-track/:trackId", async (req, res) => {
     if (!SPOTIFY_CLIENT_ID || !SPOTIFY_CLIENT_SECRET || !SPOTIFY_REFRESH_TOKEN) {
       return res.status(503).json({
         ok: false,
-        error: "Spotify API credentials are not configured on add-current"
+        error: "Spotify API credentials are not configured on media-actions-api"
       });
     }
 
@@ -783,5 +783,5 @@ app.all("/group", async (req, res) => {
 
 
 app.listen(Number(PORT), () =>
-  console.log(`add-current listening on http://localhost:${PORT}`)
+  console.log(`media-actions-api listening on http://localhost:${PORT}`)
 );

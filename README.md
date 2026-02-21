@@ -35,10 +35,10 @@ cd spainify
 ```
 
 This is the main setup command. It connects to the Pi over SSH, runs the setup wizard, and runs redeploy.
-If `add-current` is enabled, it also handles Spotify auth through the tunneled login URL automatically.
+If `media-actions-api` is enabled, it also handles Spotify auth through the tunneled login URL automatically.
 
 Now-playing works without Spotify credentials.
-Spotify credentials are only required for add-to-playlist and optional metadata enrichment (via `add-current`).
+Spotify credentials are only required for add-to-playlist and optional metadata enrichment (via `media-actions-api`).
 
 Before running setup, gather API credentials:
 
@@ -50,11 +50,11 @@ Before running setup, gather API credentials:
      - International mode: enter city + 2-letter country code (saved as `City,CC`)
      - Advanced mode: enter a raw OpenWeather location query
 
-2. Spotify (add-current)
+2. Spotify (media-actions-api)
    - Create/sign in to Spotify Developer and open the dashboard: https://developer.spotify.com/dashboard
    - Create an app and add both redirect URIs:
      - `http://127.0.0.1:8888/callback`
-     - `http://192.168.4.96:8888/callback` (or replace with your Pi IP)
+     - `http://<pi-ip-address>:8888/callback`
    - Copy `Client ID` and `Client Secret` into setup prompts.
 
 Optional: run setup directly on the Pi (for local desktop use):
@@ -77,7 +77,7 @@ To change service choices later, just re-run setup:
 ## Apps and Services
 
 - `apps/sonos-http-api` — Sonos HTTP API backend (includes local `/album-art` proxy)
-- `apps/add-current` — add current Spotify track to playlist + metadata API
+- `apps/add-current` — media actions API (playlist add + metadata + Sonos grouping)
 - `apps/spotify-display` — Python display controller (power, browser, mode switching)
 - `apps/sonify` — now-playing web UI
 - `apps/weather-dashboard` — weather web UI
@@ -89,7 +89,7 @@ To change service choices later, just re-run setup:
 - Sonify UI: `http://localhost:5000`
 - Weather dashboard: `http://localhost:3000`
 - Sonos HTTP API: `http://localhost:5005`
-- Add-current API: `http://localhost:3030`
+- Media actions API: `http://localhost:3030`
 - Spotify auth helper (setup flow only): `http://127.0.0.1:8888/login` (via tunnel)
 
 ## Device Configuration
@@ -97,7 +97,7 @@ To change service choices later, just re-run setup:
 Setup writes all required config files for the device. In normal usage, you should not need to create or edit these manually.
 
 - `.spainify-device.env` — per-device service enablement profile used by `scripts/redeploy.sh`
-- `apps/add-current/.env` — Spotify/API settings for add-current (if enabled)
+- `apps/add-current/.env` — Spotify/API settings for media-actions-api (if enabled)
 - `apps/spotify-display/.env` — display room/cursor settings (if enabled)
 - `apps/weather-dashboard/.env` — weather settings (API key, city, display start/end time)
 - `apps/sonify/.env.local` — sonify room + optional metadata endpoint (if enabled)
@@ -126,7 +126,7 @@ cd /path/to/spainify
 If setup already exists, the wizard asks whether to run full setup or add/modify one specific item.
 
 Targeted mode supports:
-- `add-current` (playlist + track-details API)
+- `media-actions-api` (playlist + track-details + grouping API)
 - `weather-dashboard`
 - `Now-playing Sonos zone`
 
@@ -138,15 +138,15 @@ For multi-Pi setups, run the same update commands on each Pi. Each Pi keeps its 
 
 ```bash
 # Status of all core services
-for s in add-current sonos-http-api sonify-serve spotify_display weather-dashboard; do
+for s in media-actions-api sonos-http-api sonify-ui display-controller weather-dashboard; do
   printf "%-20s active=%-8s enabled=%s\n" "$s" "$(systemctl is-active "$s".service)" "$(systemctl is-enabled "$s".service)"
 done
 
 # Restart one service
-sudo systemctl restart spotify_display.service
+sudo systemctl restart display-controller.service
 
 # Restart all services
-sudo systemctl restart add-current.service sonos-http-api.service sonify-serve.service spotify_display.service weather-dashboard.service
+sudo systemctl restart media-actions-api.service sonos-http-api.service sonify-ui.service display-controller.service weather-dashboard.service
 ```
 
 ## Security Notes

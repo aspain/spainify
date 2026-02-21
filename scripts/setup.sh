@@ -349,7 +349,7 @@ prompt_targeted_setup_item() {
   while true; do
     echo >&2
     echo "Choose what to add or modify:" >&2
-    echo "  1) add-current (playlist + track-details API)" >&2
+    echo "  1) media-actions-api (playlist + track-details + grouping API)" >&2
     echo "  2) weather-dashboard" >&2
     echo "  3) Now-playing Sonos zone" >&2
     read -r -p "Choose item: [1] " choice || true
@@ -931,7 +931,7 @@ print_spotify_setup_help() {
   local host_ip=""
   host_ip="$(first_ipv4_address)"
 
-  echo "Spotify app setup (for add-current):"
+  echo "Spotify app setup (for media-actions-api):"
   echo "  1) Create/sign in to your Spotify developer account:"
   echo "     https://developer.spotify.com/dashboard"
   echo "  2) Create an app and add these Redirect URI values in app settings:"
@@ -972,7 +972,7 @@ start_spotify_auth_helper() {
     return 1
   fi
   if [[ ! -f "$auth_dir/auth.js" ]]; then
-    echo "Could not find add-current auth helper: $auth_dir/auth.js"
+    echo "Could not find media-actions-api auth helper: $auth_dir/auth.js"
     return 1
   fi
 
@@ -989,7 +989,7 @@ start_spotify_auth_helper() {
 
   # Ensure auth helper dependencies exist before launching node auth.js.
   if ! (cd "$auth_dir" && node -e "require.resolve('express'); require.resolve('dotenv'); require.resolve('node-fetch')" >/dev/null 2>&1); then
-    echo "Installing add-current dependencies for Spotify auth helper..."
+    echo "Installing media-actions-api dependencies for Spotify auth helper..."
     (cd "$auth_dir" && npm install --no-audit --no-fund >/dev/null)
   fi
 
@@ -1147,7 +1147,7 @@ DE_DUPE_WINDOW="$(escape_double_quotes "$dedupe_window")"
 EOF_AC
 }
 
-write_spotify_display_env() {
+write_display_controller_env() {
   local file="$ROOT_DIR/apps/spotify-display/.env"
   local room="$1"
   local hide_cursor="$2"
@@ -1188,6 +1188,7 @@ write_sonify_env_local() {
   if [[ -n "$metadata_base" ]]; then
     cat >"$file" <<EOF_SONIFY
 VUE_APP_SONOS_ROOM="$escaped_room"
+VUE_APP_MEDIA_ACTIONS_BASE="$(escape_double_quotes "$metadata_base")"
 VUE_APP_ADD_CURRENT_BASE="$(escape_double_quotes "$metadata_base")"
 EOF_SONIFY
   else
@@ -1331,7 +1332,7 @@ ADD_CURRENT_DEDUPE_WINDOW="$(read_existing_or_default "$add_current_env_file" "D
 if [[ "$configure_add_current_prompt" == "1" && "$ENABLE_ADD_CURRENT" == "1" ]]; then
   token_captured_automatically="0"
   echo
-  echo "Configure add-current service values:"
+  echo "Configure media-actions-api service values:"
   print_spotify_setup_help
   echo
   ADD_CURRENT_CLIENT_ID="$(prompt_text "Spotify client ID" "$ADD_CURRENT_CLIENT_ID")"
@@ -1388,7 +1389,7 @@ if [[ "$configure_add_current_prompt" == "1" && "$ENABLE_ADD_CURRENT" == "1" ]];
   ADD_CURRENT_DEDUPE_WINDOW="all"
 
   if [[ -z "$ADD_CURRENT_CLIENT_ID" || -z "$ADD_CURRENT_CLIENT_SECRET" || -z "$ADD_CURRENT_REFRESH_TOKEN" ]]; then
-    echo "Warning: add-current is enabled but Spotify credentials are incomplete."
+    echo "Warning: media-actions-api is enabled but Spotify credentials are incomplete."
     echo "         Metadata and playlist endpoints may return auth errors until values are set."
   fi
 fi
@@ -1409,14 +1410,17 @@ if [[ "$configure_weather_prompt" == "1" && "$ENABLE_WEATHER_DASHBOARD" == "1" ]
   WEATHER_DISPLAY_END="$(prompt_time_hhmm "Enter weather display end time (example: 9:00am)" "$WEATHER_DISPLAY_END")"
 fi
 
-SONIFY_METADATA_BASE_EXISTING="$(read_existing_or_default "$sonify_env_local_file" "VUE_APP_ADD_CURRENT_BASE" "")"
+SONIFY_METADATA_BASE_EXISTING="$(read_existing_or_default "$sonify_env_local_file" "VUE_APP_MEDIA_ACTIONS_BASE" "")"
+if [[ -z "$SONIFY_METADATA_BASE_EXISTING" ]]; then
+  SONIFY_METADATA_BASE_EXISTING="$(read_existing_or_default "$sonify_env_local_file" "VUE_APP_ADD_CURRENT_BASE" "")"
+fi
 SONIFY_METADATA_BASE="$SONIFY_METADATA_BASE_EXISTING"
 
 if [[ "$configure_sonify_prompt" == "1" && "$ENABLE_SONIFY_SERVE" == "1" ]]; then
   echo
   if [[ "$ENABLE_ADD_CURRENT" == "1" ]]; then
     SONIFY_METADATA_BASE="http://localhost:3030"
-    echo "Sonify track-details source: $SONIFY_METADATA_BASE (local add-current)"
+    echo "Sonify track-details source: $SONIFY_METADATA_BASE (local media-actions-api)"
   else
     use_remote_metadata="$(prompt_yes_no "Use extra Spotify track details from another Pi?" "$( [[ -n "$SONIFY_METADATA_BASE_EXISTING" ]] && echo 1 || echo 0 )")"
     if [[ "$use_remote_metadata" == "1" ]]; then
@@ -1433,7 +1437,7 @@ echo
 echo "==> Writing configuration files"
 
 WRITE_ADD_CURRENT_ENV="0"
-WRITE_SPOTIFY_DISPLAY_ENV="0"
+WRITE_DISPLAY_CONTROLLER_ENV="0"
 WRITE_WEATHER_ENV="0"
 WRITE_SONIFY_ENV_LOCAL="0"
 
@@ -1442,7 +1446,7 @@ if [[ "$SETUP_MODE" == "full" ]]; then
     WRITE_ADD_CURRENT_ENV="1"
   fi
   if [[ "$ENABLE_SPOTIFY_DISPLAY" == "1" ]]; then
-    WRITE_SPOTIFY_DISPLAY_ENV="1"
+    WRITE_DISPLAY_CONTROLLER_ENV="1"
   fi
   if [[ "$ENABLE_WEATHER_DASHBOARD" == "1" ]]; then
     WRITE_WEATHER_ENV="1"
@@ -1467,7 +1471,7 @@ else
       ;;
     SONOS_ROOM)
       if [[ "$ENABLE_SPOTIFY_DISPLAY" == "1" ]]; then
-        WRITE_SPOTIFY_DISPLAY_ENV="1"
+        WRITE_DISPLAY_CONTROLLER_ENV="1"
       fi
       if [[ "$ENABLE_SONIFY_SERVE" == "1" ]]; then
         WRITE_SONIFY_ENV_LOCAL="1"
@@ -1487,8 +1491,8 @@ if [[ "$WRITE_ADD_CURRENT_ENV" == "1" ]]; then
     "$ADD_CURRENT_PREFERRED_ROOM" \
     "$ADD_CURRENT_DEDUPE_WINDOW"
 fi
-if [[ "$WRITE_SPOTIFY_DISPLAY_ENV" == "1" ]]; then
-  write_spotify_display_env \
+if [[ "$WRITE_DISPLAY_CONTROLLER_ENV" == "1" ]]; then
+  write_display_controller_env \
     "$SONOS_ROOM_VALUE" \
     "$HIDE_CURSOR_WHILE_DISPLAYING_VALUE" \
     "$HIDE_CURSOR_IDLE_SECONDS_VALUE"
@@ -1547,7 +1551,7 @@ fi
 redeploy_prompt="Run redeploy now?"
 if [[ "$SETUP_MODE" == "targeted" ]]; then
   case "$SETUP_TARGET_KEY" in
-    ENABLE_ADD_CURRENT) redeploy_prompt="Deploy changes for add-current now?" ;;
+    ENABLE_ADD_CURRENT) redeploy_prompt="Deploy changes for media-actions-api now?" ;;
     ENABLE_WEATHER_DASHBOARD) redeploy_prompt="Deploy changes for weather-dashboard now?" ;;
     SONOS_ROOM) redeploy_prompt="Deploy changes for Now-playing Sonos zone now?" ;;
     *) redeploy_prompt="Deploy selected changes now?" ;;
