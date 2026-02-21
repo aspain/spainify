@@ -93,22 +93,6 @@ To change service choices later, just re-run setup:
 - Media actions API: `http://localhost:3030`
 - Spotify auth helper (setup flow only): `http://127.0.0.1:8888/login` (via tunnel)
 
-## Device Configuration
-
-Setup writes all required config files for the device. In normal usage, you should not need to create or edit these manually.
-
-- `.spainify-device.env` — per-device service enablement profile used by `scripts/redeploy.sh`
-- `media-actions-api` config file: `apps/media-actions-api/.env` (Spotify/API settings, if enabled)
-- `display-controller` config file: `apps/display-controller/.env` (room/cursor settings, if enabled)
-- `weather-dashboard` config file: `apps/weather-dashboard/.env` (API key, city, display start/end time)
-- `sonify-ui` config file: `apps/sonify-ui/.env.local` (room + optional metadata endpoint, if enabled)
-
-To change settings, re-run setup instead of editing files by hand:
-
-```bash
-./scripts/setup-remote.sh <pi-user>@<pi-ip>
-```
-
 ## Redeploy / Update Workflow
 
 Use this after code changes to pull and redeploy enabled services on a configured Pi:
