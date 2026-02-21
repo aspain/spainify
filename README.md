@@ -151,7 +151,7 @@ ssh <pi-user>@<pi-ip> 'journalctl -u media-actions-api.service -f -n 100'
 
 # API smoke checks from Pi
 ssh <pi-user>@<pi-ip> 'curl -sS http://127.0.0.1:3030/health; echo'
-ssh <pi-user>@<pi-ip> 'curl -sS http://127.0.0.1:3030/media-actions-smart; echo'
+ssh <pi-user>@<pi-ip> 'curl -sS -o /dev/null -w "%{http_code}\n" -X OPTIONS http://127.0.0.1:3030/media-actions-smart'
 ```
 
 ---
