@@ -106,6 +106,18 @@ fi
 cleanup() {
   if [[ -n "$WATCHER_PID" ]] && kill -0 "$WATCHER_PID" >/dev/null 2>&1; then
     kill "$WATCHER_PID" >/dev/null 2>&1 || true
+    for ((i=0; i<30; i++)); do
+      if ! kill -0 "$WATCHER_PID" >/dev/null 2>&1; then
+        break
+      fi
+      sleep 0.1
+    done
+    if kill -0 "$WATCHER_PID" >/dev/null 2>&1; then
+      if command -v pkill >/dev/null 2>&1; then
+        pkill -TERM -P "$WATCHER_PID" >/dev/null 2>&1 || true
+      fi
+      kill -9 "$WATCHER_PID" >/dev/null 2>&1 || true
+    fi
     wait "$WATCHER_PID" 2>/dev/null || true
   fi
 }
