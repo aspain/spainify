@@ -1328,16 +1328,79 @@ fi
 
 echo "Wrote: $DEVICE_CONFIG_FILE"
 
+REDEPLOY_ONLY_KEYS_CSV=""
+if [[ "$SETUP_MODE" == "targeted" ]]; then
+  declare -A redeploy_scope_map=()
+  redeploy_scope_keys=()
+
+  add_redeploy_scope_key() {
+    local key="$1"
+    if [[ -z "$key" || -n "${redeploy_scope_map[$key]+x}" ]]; then
+      return
+    fi
+    redeploy_scope_map["$key"]="1"
+    redeploy_scope_keys+=("$key")
+  }
+
+  case "$SETUP_TARGET_KEY" in
+    ENABLE_ADD_CURRENT)
+      add_redeploy_scope_key ENABLE_ADD_CURRENT
+      if [[ "$ENABLE_SONIFY_SERVE" == "1" ]]; then
+        add_redeploy_scope_key ENABLE_SONIFY_SERVE
+      fi
+      ;;
+    ENABLE_SPOTIFY_DISPLAY)
+      add_redeploy_scope_key ENABLE_SPOTIFY_DISPLAY
+      add_redeploy_scope_key ENABLE_SONIFY_SERVE
+      add_redeploy_scope_key ENABLE_SONOS_HTTP_API
+      ;;
+    ENABLE_WEATHER_DASHBOARD)
+      add_redeploy_scope_key ENABLE_WEATHER_DASHBOARD
+      if [[ "$ENABLE_SPOTIFY_DISPLAY" == "1" ]]; then
+        add_redeploy_scope_key ENABLE_SPOTIFY_DISPLAY
+      fi
+      ;;
+    ENABLE_SONOS_HTTP_API)
+      add_redeploy_scope_key ENABLE_SONOS_HTTP_API
+      ;;
+    ENABLE_SONIFY_SERVE)
+      add_redeploy_scope_key ENABLE_SONIFY_SERVE
+      add_redeploy_scope_key ENABLE_SONOS_HTTP_API
+      ;;
+    SONOS_ROOM)
+      if [[ "$ENABLE_SPOTIFY_DISPLAY" == "1" ]]; then
+        add_redeploy_scope_key ENABLE_SPOTIFY_DISPLAY
+      fi
+      if [[ "$ENABLE_SONIFY_SERVE" == "1" ]]; then
+        add_redeploy_scope_key ENABLE_SONIFY_SERVE
+      fi
+      ;;
+  esac
+
+  if (( ${#redeploy_scope_keys[@]} > 0 )); then
+    REDEPLOY_ONLY_KEYS_CSV="$(IFS=,; echo "${redeploy_scope_keys[*]}")"
+  fi
+fi
+
 run_now="$(prompt_yes_no "Run redeploy now?" "1")"
 if [[ "$run_now" == "1" ]]; then
   echo
   echo "==> Running redeploy..."
-  "$ROOT_DIR/scripts/redeploy.sh"
+  if [[ -n "$REDEPLOY_ONLY_KEYS_CSV" ]]; then
+    echo "==> Targeted redeploy scope: $REDEPLOY_ONLY_KEYS_CSV"
+    "$ROOT_DIR/scripts/redeploy.sh" --only "$REDEPLOY_ONLY_KEYS_CSV"
+  else
+    "$ROOT_DIR/scripts/redeploy.sh"
+  fi
   echo "==> Finalizing setup..."
   echo "==> Setup complete."
 else
   echo
-  echo "Run this when ready: ./scripts/redeploy.sh"
+  if [[ -n "$REDEPLOY_ONLY_KEYS_CSV" ]]; then
+    echo "Run this when ready: ./scripts/redeploy.sh --only $REDEPLOY_ONLY_KEYS_CSV"
+  else
+    echo "Run this when ready: ./scripts/redeploy.sh"
+  fi
   echo "==> Setup complete."
 fi
 

@@ -5,6 +5,37 @@ cd "$(dirname "$0")/.."
 ROOT_DIR="$(pwd)"
 SPAINIFY_USER="${SUDO_USER:-${USER:-$(id -un)}}"
 DEVICE_CONFIG_FILE="$ROOT_DIR/.spainify-device.env"
+REDEPLOY_ONLY_RAW=""
+
+usage() {
+  cat <<'EOF'
+Usage:
+  ./scripts/redeploy.sh [--only <comma-separated-service-keys>]
+
+Options:
+  --only <keys>   Redeploy only selected service keys (for example:
+                  ENABLE_WEATHER_DASHBOARD,ENABLE_SPOTIFY_DISPLAY)
+  -h, --help      Show this help
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --only)
+      REDEPLOY_ONLY_RAW="${2:-}"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1"
+      usage
+      exit 1
+      ;;
+  esac
+done
 
 # shellcheck disable=SC1091
 source "$ROOT_DIR/scripts/lib/device_config.sh"
@@ -91,6 +122,37 @@ service_enabled() {
   [[ "${!key:-0}" == "1" ]]
 }
 
+declare -A REDEPLOY_SCOPE_MAP=()
+if [[ -n "$REDEPLOY_ONLY_RAW" ]]; then
+  IFS=',' read -r -a requested_scope_keys <<< "$REDEPLOY_ONLY_RAW"
+  for key in "${requested_scope_keys[@]}"; do
+    key="$(spainify_trim "$key")"
+    [[ -z "$key" ]] && continue
+    case "$key" in
+      ENABLE_ADD_CURRENT|ENABLE_SPOTIFY_DISPLAY|ENABLE_WEATHER_DASHBOARD|ENABLE_SONOS_HTTP_API|ENABLE_SONIFY_SERVE)
+        REDEPLOY_SCOPE_MAP["$key"]="1"
+        ;;
+      *)
+        echo "Invalid --only service key: $key"
+        echo "Valid keys: ${SPAINIFY_SERVICE_KEYS[*]}"
+        exit 1
+        ;;
+    esac
+  done
+  if (( ${#REDEPLOY_SCOPE_MAP[@]} == 0 )); then
+    echo "--only was provided but no valid service keys were found."
+    exit 1
+  fi
+fi
+
+scope_includes() {
+  local key="$1"
+  if (( ${#REDEPLOY_SCOPE_MAP[@]} == 0 )); then
+    return 0
+  fi
+  [[ -n "${REDEPLOY_SCOPE_MAP[$key]+x}" ]]
+}
+
 reconcile_service() {
   local key="$1"
   local unit
@@ -127,6 +189,10 @@ else
   echo "==> Using device config: $DEVICE_CONFIG_FILE"
 fi
 
+if (( ${#REDEPLOY_SCOPE_MAP[@]} > 0 )); then
+  echo "==> Scoped redeploy requested: ${!REDEPLOY_SCOPE_MAP[*]}"
+fi
+
 if [[ -n "$dependency_notes" ]]; then
   echo "==> Dependency adjustments:"
   while IFS= read -r note; do
@@ -136,26 +202,26 @@ fi
 
 echo
 echo "==> Installing Node dependencies..."
-if service_enabled ENABLE_ADD_CURRENT; then
+if scope_includes ENABLE_ADD_CURRENT && service_enabled ENABLE_ADD_CURRENT; then
   echo "----> npm install in apps/add-current"
   (cd apps/add-current && npm install --no-audit --no-fund --loglevel=error)
 fi
-if service_enabled ENABLE_WEATHER_DASHBOARD; then
+if scope_includes ENABLE_WEATHER_DASHBOARD && service_enabled ENABLE_WEATHER_DASHBOARD; then
   echo "----> npm install in apps/weather-dashboard"
   (cd apps/weather-dashboard && npm install --legacy-peer-deps --no-audit --no-fund --loglevel=error)
 fi
-if service_enabled ENABLE_SONIFY_SERVE; then
+if scope_includes ENABLE_SONIFY_SERVE && service_enabled ENABLE_SONIFY_SERVE; then
   echo "----> npm install in apps/sonify"
   (cd apps/sonify && npm install --no-audit --no-fund --loglevel=error)
 fi
-if service_enabled ENABLE_SONOS_HTTP_API; then
+if scope_includes ENABLE_SONOS_HTTP_API && service_enabled ENABLE_SONOS_HTTP_API; then
   ensure_sonos_http_api_layout
   echo "----> npm install in apps/sonos-http-api"
   (cd apps/sonos-http-api && npm install --no-audit --no-fund --loglevel=error)
 fi
 
 echo
-if service_enabled ENABLE_SPOTIFY_DISPLAY; then
+if scope_includes ENABLE_SPOTIFY_DISPLAY && service_enabled ENABLE_SPOTIFY_DISPLAY; then
   echo "==> Installing Python dependencies for Spotify display (backend/venv)..."
   REQ_FILE=apps/spotify-display/requirements.txt
   VENV_DIR=backend/venv
@@ -181,21 +247,21 @@ if service_enabled ENABLE_SPOTIFY_DISPLAY; then
     echo "----> no $REQ_FILE found; skipping Python deps"
   fi
 else
-  echo "==> Spotify display disabled; skipping Python dependency step."
+  echo "==> Spotify display not in redeploy scope or disabled; skipping Python dependency step."
 fi
 
 echo
 echo "==> Building frontend assets..."
-if service_enabled ENABLE_WEATHER_DASHBOARD; then
+if scope_includes ENABLE_WEATHER_DASHBOARD && service_enabled ENABLE_WEATHER_DASHBOARD; then
   run_quiet_build "weather-dashboard" "apps/weather-dashboard"
 else
-  echo "----> skipping weather-dashboard build (service disabled)"
+  echo "----> skipping weather-dashboard build (not in scope or service disabled)"
 fi
 
-if service_enabled ENABLE_SONIFY_SERVE; then
+if scope_includes ENABLE_SONIFY_SERVE && service_enabled ENABLE_SONIFY_SERVE; then
   run_quiet_build "sonify" "apps/sonify"
 else
-  echo "----> skipping sonify build (service disabled)"
+  echo "----> skipping sonify build (not in scope or service disabled)"
 fi
 
 echo
@@ -210,11 +276,13 @@ sudo systemctl daemon-reload
 
 echo
 echo "==> Reconciling service state"
-reconcile_service ENABLE_ADD_CURRENT
-reconcile_service ENABLE_SPOTIFY_DISPLAY
-reconcile_service ENABLE_WEATHER_DASHBOARD
-reconcile_service ENABLE_SONOS_HTTP_API
-reconcile_service ENABLE_SONIFY_SERVE
+for key in "${SPAINIFY_SERVICE_KEYS[@]}"; do
+  if scope_includes "$key"; then
+    reconcile_service "$key"
+  else
+    echo "----> leaving $(spainify_service_unit "$key") unchanged (out of scope)"
+  fi
+done
 
 echo
 echo "All done."
