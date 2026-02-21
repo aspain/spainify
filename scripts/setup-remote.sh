@@ -7,7 +7,7 @@ Usage:
   ./scripts/setup-remote.sh <user@host> [options]
 
 Options:
-  --branch <name>     Git branch to run on remote Pi (default: codex/modular-setup-refactor)
+  --branch <name>     Git branch to run on remote Pi (default: main)
   --repo <url>        Git repo URL to clone if missing (default: https://github.com/aspain/spainify.git)
   --path <dir>        Remote repo path (default: $HOME/spainify)
   --fresh             Remove generated env/config files before running setup
@@ -29,7 +29,7 @@ require_cmd() {
 }
 
 REMOTE_TARGET=""
-BRANCH="codex/modular-setup-refactor"
+BRANCH="main"
 REPO_URL="https://github.com/aspain/spainify.git"
 REMOTE_PATH=""
 FRESH="0"
@@ -134,7 +134,7 @@ remote_script=$(cat <<'EOF_REMOTE'
 set -euo pipefail
 
 REMOTE_PATH="${REMOTE_PATH_OVERRIDE:-$HOME/spainify}"
-BRANCH="${BRANCH:-codex/modular-setup-refactor}"
+BRANCH="${BRANCH:-main}"
 REPO_URL="${REPO_URL:-https://github.com/aspain/spainify.git}"
 FRESH="${FRESH:-0}"
 

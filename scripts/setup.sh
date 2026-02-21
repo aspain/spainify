@@ -332,7 +332,7 @@ prompt_existing_setup_mode() {
     echo "Existing setup detected. Choose setup mode:"
     echo "  1) Run full setup (all services and settings)"
     echo "  2) Add/modify one service or room setting"
-    read -r -p "Choose mode: [1] " choice || true
+    read -r -p "Enter 1 for full setup, or 2 to add/modify one service: [1] " choice || true
     choice="${choice:-1}"
 
     case "$choice" in
