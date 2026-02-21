@@ -88,12 +88,13 @@ spainify_read_env_value() {
     return 1
   fi
 
-  line="$(grep -E "^[[:space:]]*${key}=" "$file" | tail -n 1 || true)"
+  line="$(grep -E "^[[:space:]]*(export[[:space:]]+)?${key}[[:space:]]*=" "$file" | tail -n 1 || true)"
   if [[ -z "$line" ]]; then
     return 1
   fi
 
   value="${line#*=}"
+  value="$(spainify_trim "$value")"
   if [[ "$value" == \"*\" && "$value" == *\" ]]; then
     value="${value#\"}"
     value="${value%\"}"
@@ -102,7 +103,7 @@ spainify_read_env_value() {
     value="${value%\'}"
   fi
 
-  printf '%s' "$value"
+  printf '%s' "$(spainify_trim "$value")"
 }
 
 spainify_apply_service_dependencies() {
