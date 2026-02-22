@@ -277,6 +277,17 @@ def sonos_is_playing(
     # Wake the display only on active PLAYING state.
     # TRANSITIONING is used only as a short hold after recent real playback
     # so track boundaries don't briefly blank the display.
+    def _transport_state(state_dict):
+        if not isinstance(state_dict, dict):
+            return ""
+        # Prefer zone-level transport state because player-level state can
+        # remain PLAYING during paused handoff/connect scenarios.
+        for key in ("zoneState", "playbackState", "playerState"):
+            raw = state_dict.get(key)
+            if isinstance(raw, str) and raw.strip():
+                return raw.strip().upper()
+        return ""
+
     now = time.monotonic()
     playing = False
     transitioning = False
@@ -284,7 +295,12 @@ def sonos_is_playing(
     if not isinstance(members, list):
         members = []
 
-    for m in members:
+    coordinator = next(
+        (m for m in members if isinstance(m, dict) and m.get("coordinator")), None
+    )
+    members_to_check = [coordinator] if coordinator else members
+
+    for m in members_to_check:
         if not isinstance(m, dict):
             continue
         st = m.get("state")
@@ -294,7 +310,7 @@ def sonos_is_playing(
         if not isinstance(current_track, dict):
             current_track = {}
 
-        state = st.get("playbackState")
+        state = _transport_state(st)
         has_track = current_track.get("type") == "track" and current_track.get("title")
 
         if state == "PLAYING" and has_track:

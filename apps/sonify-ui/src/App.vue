@@ -35,6 +35,21 @@ export default {
   },
 
   methods: {
+    getTransportState(state) {
+      if (!state || typeof state !== 'object') return ''
+
+      // Prefer zone-level transport state because player-level state can
+      // report PLAYING during paused handoff/connect scenarios.
+      const keys = ['zoneState', 'playbackState', 'playerState']
+      for (const key of keys) {
+        const value = state[key]
+        if (typeof value === 'string' && value.trim()) {
+          return value.trim().toUpperCase()
+        }
+      }
+      return ''
+    },
+
     extractSpotifyTrackId(uri) {
       if (!uri) return ''
 
@@ -114,7 +129,7 @@ export default {
     },
 
     /* ─────────────────────────────────────────────────────────────
-       Poll Sonos every 2 s, but tolerate short TRANSITIONING gaps
+       Poll Sonos every 2 s, but tolerate short transport gaps
        before we say “nothing is playing”.
        ──────────────────────────────────────────────────────────── */
     async pollSonosState() {
@@ -135,153 +150,170 @@ export default {
             process.env.VITE_SONOS_ROOM ||
             'Living Room';
 
-          const activeZone = zones.find(zone =>
-            zone.members.some(m => m.roomName === TARGET)
-            && zone.members.some(m =>
-                  ['PLAYING','TRANSITIONING']
-                    .includes(m.state.playbackState)
-              )
-          );
+          const targetZone = zones.find(
+            zone =>
+              Array.isArray(zone.members) &&
+              zone.members.some(m => m.roomName === TARGET)
+          )
 
-          if (activeZone) {
+          if (targetZone) {
             /* 2 ─ Basic track data */
-            const coordinator = activeZone.members.find(m => m.coordinator);
-            const trackState  = coordinator.state.currentTrack;
+            const coordinator =
+              targetZone.members.find(m => m && m.coordinator) ||
+              targetZone.members[0]
+            const state = coordinator && coordinator.state ? coordinator.state : null
+            const trackState =
+              state && typeof state.currentTrack === 'object'
+                ? state.currentTrack
+                : null
+            const isPlaying =
+              trackState &&
+              this.getTransportState(state) === 'PLAYING'
 
-            /* ── Discover / remember the speaker’s IP ───────────────────── */
-            let sonosIP = coordinator.ip || '';
+            if (isPlaying) {
+              /* ── Discover / remember the speaker’s IP ───────────────────── */
+              let sonosIP = coordinator.ip || '';
 
-            // ② pick any *other* member with an IP
-            if (!sonosIP) {
-              const m = activeZone.members.find(m => m.ip);
-              if (m) sonosIP = m.ip;
-            }
+              // ② pick any *other* member with an IP
+              if (!sonosIP) {
+                const m = targetZone.members.find(m => m.ip);
+                if (m) sonosIP = m.ip;
+              }
 
-            // ③ extract host from nextTrack.absoluteAlbumArtUri (old trick)
-            if (
-              !sonosIP &&
-              coordinator.state.nextTrack &&
-              coordinator.state.nextTrack.absoluteAlbumArtUri
-            ) {
-              try {
-                sonosIP = new URL(
-                  coordinator.state.nextTrack.absoluteAlbumArtUri
-                ).hostname;
-              } catch (_) { /* ignore parse errors */ }
-            }
+              // ③ extract host from nextTrack.absoluteAlbumArtUri (old trick)
+              if (
+                !sonosIP &&
+                state.nextTrack &&
+                state.nextTrack.absoluteAlbumArtUri
+              ) {
+                try {
+                  sonosIP = new URL(
+                    state.nextTrack.absoluteAlbumArtUri
+                  ).hostname;
+                } catch (_) { /* ignore parse errors */ }
+              }
 
-            // ④ FALL BACK to the cached IP from previous polls
-            if (!sonosIP && cachedSonosIP) {
-              sonosIP = cachedSonosIP;
-            }
+              // ④ FALL BACK to the cached IP from previous polls
+              if (!sonosIP && cachedSonosIP) {
+                sonosIP = cachedSonosIP;
+              }
 
-            // update cache if we finally got one
-            if (sonosIP) cachedSonosIP = sonosIP;
+              // update cache if we finally got one
+              if (sonosIP) cachedSonosIP = sonosIP;
 
-            /* ── Build the artwork URL ─────────────────────────────────── */
-            let image = '';
+              /* ── Build the artwork URL ─────────────────────────────────── */
+              let image = '';
 
-            const hasProg = trackState.albumArtUri
-              ? trackState.albumArtUri.includes('x-sonosprog-spotify')
-              : false;
+              const hasProg = trackState.albumArtUri
+                ? trackState.albumArtUri.includes('x-sonosprog-spotify')
+                : false;
 
-            const isSonosHttp = trackState.albumArtUri
-              ? trackState.albumArtUri.includes('x-sonos-http')
-              : false;
+              const isSonosHttp = trackState.albumArtUri
+                ? trackState.albumArtUri.includes('x-sonos-http')
+                : false;
 
-            if (
-              (hasProg || isSonosHttp || !trackState.albumArtUri) &&
-              trackState.absoluteAlbumArtUri &&
-              trackState.absoluteAlbumArtUri.startsWith('http')
-            ) {
-              // artist-radio or albumArtUri missing → use absoluteAlbumArtUri
-              image = trackState.absoluteAlbumArtUri;
-            } else if (trackState.albumArtUri) {
-              if (trackState.albumArtUri.startsWith('http')) {
-                image = trackState.albumArtUri;                    // full URL
-              } else if (sonosIP) {
-                image = `http://${sonosIP}:1400${trackState.albumArtUri}`; // preferred
-              } else if (
+              if (
+                (hasProg || isSonosHttp || !trackState.albumArtUri) &&
                 trackState.absoluteAlbumArtUri &&
                 trackState.absoluteAlbumArtUri.startsWith('http')
               ) {
-                image = trackState.absoluteAlbumArtUri;            // last resort
+                // artist-radio or albumArtUri missing → use absoluteAlbumArtUri
+                image = trackState.absoluteAlbumArtUri;
+              } else if (trackState.albumArtUri) {
+                if (trackState.albumArtUri.startsWith('http')) {
+                  image = trackState.albumArtUri;                    // full URL
+                } else if (sonosIP) {
+                  image = `http://${sonosIP}:1400${trackState.albumArtUri}`; // preferred
+                } else if (
+                  trackState.absoluteAlbumArtUri &&
+                  trackState.absoluteAlbumArtUri.startsWith('http')
+                ) {
+                  image = trackState.absoluteAlbumArtUri;            // last resort
+                }
               }
-            }
 
-            /* CORS-safe copy for node-vibrant */
-            const paletteSrc =
-              image.includes(':1400/') || image.includes(`://${sonosIP}:1400`)
-                ? `http://localhost:5005/album-art?url=${encodeURIComponent(image)}`
-                : image;
+              /* CORS-safe copy for node-vibrant */
+              const paletteSrc =
+                image.includes(':1400/') || image.includes(`://${sonosIP}:1400`)
+                  ? `http://localhost:5005/album-art?url=${encodeURIComponent(image)}`
+                  : image;
 
-            const trackTitle = trackState.title || ''
-            const trackArtist = trackState.artist || ''
-            const trackId = this.extractSpotifyTrackId(trackState.uri || '')
-            const cachedSpotifyMetadata = trackId
-              ? this.spotifyTrackMetaCache[trackId]
-              : null
+              const trackTitle = trackState.title || ''
+              const trackArtist = trackState.artist || ''
+              const trackId = this.extractSpotifyTrackId(trackState.uri || '')
+              const cachedSpotifyMetadata = trackId
+                ? this.spotifyTrackMetaCache[trackId]
+                : null
 
-            /* Update reactive data */
-            const trackKey =
-              trackId ||
-              trackState.uri ||
-              [
-                trackTitle,
-                trackArtist,
-                trackState.absoluteAlbumArtUri,
-                trackState.albumArtUri
-              ]
-                .filter(Boolean)
-                .join('::')
+              /* Update reactive data */
+              const trackKey =
+                trackId ||
+                trackState.uri ||
+                [
+                  trackTitle,
+                  trackArtist,
+                  trackState.absoluteAlbumArtUri,
+                  trackState.albumArtUri
+                ]
+                  .filter(Boolean)
+                  .join('::')
 
-            const resolvedTitle =
-              cachedSpotifyMetadata && cachedSpotifyMetadata.title
-                ? cachedSpotifyMetadata.title
-                : trackTitle
+              const resolvedTitle =
+                cachedSpotifyMetadata && cachedSpotifyMetadata.title
+                  ? cachedSpotifyMetadata.title
+                  : trackTitle
 
-            const resolvedArtists =
-              cachedSpotifyMetadata &&
-              Array.isArray(cachedSpotifyMetadata.artists) &&
-              cachedSpotifyMetadata.artists.length > 0
-                ? cachedSpotifyMetadata.artists
-                : (trackArtist ? [trackArtist] : [])
+              const resolvedArtists =
+                cachedSpotifyMetadata &&
+                Array.isArray(cachedSpotifyMetadata.artists) &&
+                cachedSpotifyMetadata.artists.length > 0
+                  ? cachedSpotifyMetadata.artists
+                  : (trackArtist ? [trackArtist] : [])
 
-            const resolvedImage =
-              cachedSpotifyMetadata && cachedSpotifyMetadata.albumImage
-                ? cachedSpotifyMetadata.albumImage
-                : image
-
-            const resolvedPaletteSrc =
-              paletteSrc ||
-              (
+              const resolvedImage =
                 cachedSpotifyMetadata && cachedSpotifyMetadata.albumImage
                   ? cachedSpotifyMetadata.albumImage
-                  : ''
-              )
+                  : image
 
-            this.player = {
-              playing: true,
-              trackTitle: resolvedTitle,
-              trackArtists: resolvedArtists,
-              trackKey,
-              trackAlbum: {
-                image: resolvedImage,
-                paletteSrc: resolvedPaletteSrc
+              const resolvedPaletteSrc =
+                paletteSrc ||
+                (
+                  cachedSpotifyMetadata && cachedSpotifyMetadata.albumImage
+                    ? cachedSpotifyMetadata.albumImage
+                    : ''
+                )
+
+              this.player = {
+                playing: true,
+                trackTitle: resolvedTitle,
+                trackArtists: resolvedArtists,
+                trackKey,
+                trackAlbum: {
+                  image: resolvedImage,
+                  paletteSrc: resolvedPaletteSrc
+                }
+              };
+
+              if (trackId && !cachedSpotifyMetadata && trackKey !== lastMetadataTrackKey) {
+                lastMetadataTrackKey = trackKey
+                this.enrichPlayerFromSpotify(trackId, trackKey)
+              } else if (!trackId) {
+                lastMetadataTrackKey = trackKey
               }
-            };
 
-            if (trackId && !cachedSpotifyMetadata && trackKey !== lastMetadataTrackKey) {
-              lastMetadataTrackKey = trackKey
-              this.enrichPlayerFromSpotify(trackId, trackKey)
-            } else if (!trackId) {
-              lastMetadataTrackKey = trackKey
+              lastActive = Date.now();
+              lastPlayer = this.player;
+            } else {
+              /* 3 ─ Target zone exists but is not actively playing */
+              if (Date.now() - lastActive > GRACE_MS) {
+                this.player.playing = false
+                lastMetadataTrackKey = ''
+              } else {
+                this.player = lastPlayer
+              }
             }
-
-            lastActive = Date.now();
-            lastPlayer = this.player;
           } else {
-            /* 3 ─ No active zone; grace period avoids flicker */
+            /* 3 ─ Target zone missing; grace period avoids flicker */
             if (Date.now() - lastActive > GRACE_MS) {
               this.player.playing = false;   // show idle
               lastMetadataTrackKey = ''
