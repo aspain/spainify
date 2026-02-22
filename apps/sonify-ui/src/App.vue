@@ -243,13 +243,37 @@ export default {
                   .filter(Boolean)
                   .join('::')
 
-              const isTrackTransition =
-                !this.player.playing || this.player.trackKey !== trackKey
+              const isSameTrack =
+                this.player.playing && this.player.trackKey === trackKey
+              if (isSameTrack) {
+                const existingArtists = Array.isArray(this.player.trackArtists)
+                  ? this.player.trackArtists.filter(Boolean)
+                  : []
+                const resolvedArtists = existingArtists.length
+                  ? existingArtists
+                  : (trackArtist ? [trackArtist] : [])
+
+                this.player = {
+                  playing: true,
+                  trackTitle: this.player.trackTitle || trackTitle,
+                  trackArtists: resolvedArtists,
+                  trackKey,
+                  trackAlbum: {
+                    image: this.player.trackAlbum.image || image,
+                    paletteSrc: this.player.trackAlbum.paletteSrc || paletteSrc
+                  }
+                }
+
+                lastActive = Date.now();
+                lastPlayer = this.player;
+                return
+              }
+
               const cachedSpotifyMetadata = trackId
                 ? this.spotifyTrackMetaCache[trackId]
                 : null
               const resolvedSpotifyMetadata =
-                trackId && isTrackTransition && !cachedSpotifyMetadata
+                trackId && !cachedSpotifyMetadata
                   ? await this.fetchSpotifyTrackMetadataWithTimeout(trackId)
                   : cachedSpotifyMetadata
 
