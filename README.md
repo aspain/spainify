@@ -128,7 +128,7 @@ For multi-Pi setups, run these commands on each Pi.
 
 ## Setting up Pi from Scratch
 
-1. Flash Raspberry Pi OS with [Raspberry Pi Imager](https://www.raspberrypi.com/software/), insert the card, and boot the Pi.
+1. Put the microSD card in your laptop (directly or with a microSD-to-SD/USB adapter), open [Raspberry Pi Imager](https://www.raspberrypi.com/software/), choose `Raspberry Pi OS (64-bit) (Recommended)`, and write it to the card. Then insert that card into the Pi and boot it.
 2. On first boot on the Pi, create your username/password and connect to Wi-Fi (or Ethernet).
 3. Enable SSH on the Pi (Preferences -> Control Center -> Interfaces -> SSH -> Enable).
 4. Continue with [First-Time Setup](#first-time-setup) and use `user@ip` in the setup command. Get the IP on the Pi with `hostname -I` (use the first value), for example: `alex@192.168.1.42`.
