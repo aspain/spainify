@@ -240,38 +240,42 @@ def sonos_is_playing(
     force_refresh=False,
     cache_seconds=5,
 ):
-    now = time.time()
-    cached_zones = getattr(sonos_is_playing, "_last_zones", None)
-    cached_ts = getattr(sonos_is_playing, "_last_zones_ts", 0)
-    if not force_refresh and cached_zones is not None and (now - cached_ts) < cache_seconds:
-        zones = cached_zones
-    else:
+    def _fetch_zones(force=False):
+        request_ts = time.time()
+        cached_zones = getattr(sonos_is_playing, "_last_zones", None)
+        cached_ts = getattr(sonos_is_playing, "_last_zones_ts", 0)
+        if not force and cached_zones is not None and (request_ts - cached_ts) < cache_seconds:
+            return cached_zones
         try:
             zones = SONOS_SESSION.get("http://localhost:5005/zones", timeout=3).json()
             if not isinstance(zones, list):
                 logging.warning("Unexpected Sonos zones payload type: %s", type(zones).__name__)
                 zones = []
             sonos_is_playing._last_zones = zones
-            sonos_is_playing._last_zones_ts = now
+            sonos_is_playing._last_zones_ts = request_ts
+            return zones
         except (requests.RequestException, ValueError) as exc:
             logging.warning("Sonos zones request failed: %s", exc)
             if cached_zones is None:
-                return False
-            zones = cached_zones
+                return None
+            return cached_zones
 
-    # find the zone group that has our target room as a member
-    grp = None
-    for zone in zones:
-        if not isinstance(zone, dict):
-            continue
-        members = zone.get("members")
-        if not isinstance(members, list):
-            continue
-        if any(isinstance(m, dict) and m.get("roomName") == room for m in members):
-            grp = zone
-            break
+    def _find_group_for_room(zones_payload, target_room):
+        if not isinstance(zones_payload, list):
+            return None
+        for zone in zones_payload:
+            if not isinstance(zone, dict):
+                continue
+            members = zone.get("members")
+            if not isinstance(members, list):
+                continue
+            if any(isinstance(m, dict) and m.get("roomName") == target_room for m in members):
+                return zone
+        return None
 
-    if not grp:
+    zones = _fetch_zones(force=force_refresh)
+    grp = _find_group_for_room(zones, room)
+    if not zones or not grp:
         return False
 
     # Wake the display only on active PLAYING state.
@@ -288,9 +292,34 @@ def sonos_is_playing(
                 return raw.strip().upper()
         return ""
 
+    def _track_key(track_dict):
+        if not isinstance(track_dict, dict):
+            return ""
+        uri = track_dict.get("uri")
+        if isinstance(uri, str) and uri.strip():
+            return uri.strip()
+        title = track_dict.get("title")
+        if isinstance(title, str):
+            return title.strip()
+        return ""
+
+    def _elapsed_seconds(state_dict):
+        if not isinstance(state_dict, dict):
+            return None
+        raw = state_dict.get("elapsedTime")
+        if isinstance(raw, (int, float)):
+            return int(raw)
+        if isinstance(raw, str):
+            raw = raw.strip()
+            if raw.isdigit():
+                return int(raw)
+        return None
+
     now = time.monotonic()
     playing = False
     transitioning = False
+    playing_track_key = ""
+    playing_elapsed = None
     members = grp.get("members") if isinstance(grp, dict) else None
     if not isinstance(members, list):
         members = []
@@ -315,10 +344,77 @@ def sonos_is_playing(
 
         if state == "PLAYING" and has_track:
             playing = True
-            sonos_is_playing._last_true = now
+            playing_track_key = _track_key(current_track)
+            playing_elapsed = _elapsed_seconds(st)
             break
         if state == "TRANSITIONING" and has_track:
             transitioning = True
+
+    last_true_age = now - getattr(sonos_is_playing, "_last_true", 0)
+
+    # On a cold wake, confirm playback is still active shortly after connect.
+    # This avoids waking on brief PLAYING blips when Spotify Connect attaches
+    # to a paused Sonos session.
+    if playing and last_true_age >= grace_seconds:
+        time.sleep(2.0)
+        confirm_zones = _fetch_zones(force=True)
+        confirm_grp = _find_group_for_room(confirm_zones, room)
+        confirmed = False
+        if confirm_grp and isinstance(confirm_grp.get("members"), list):
+            confirm_members = confirm_grp.get("members")
+            confirm_coordinator = next(
+                (
+                    m
+                    for m in confirm_members
+                    if isinstance(m, dict) and m.get("coordinator")
+                ),
+                None,
+            )
+            confirm_members_to_check = (
+                [confirm_coordinator] if confirm_coordinator else confirm_members
+            )
+            for m in confirm_members_to_check:
+                if not isinstance(m, dict):
+                    continue
+                st = m.get("state")
+                if not isinstance(st, dict):
+                    continue
+                track = st.get("currentTrack")
+                if not isinstance(track, dict):
+                    continue
+                state = _transport_state(st)
+                has_track = track.get("type") == "track" and track.get("title")
+                if state != "PLAYING" or not has_track:
+                    continue
+
+                confirm_track_key = _track_key(track)
+                confirm_elapsed = _elapsed_seconds(st)
+                same_track = (
+                    bool(playing_track_key)
+                    and bool(confirm_track_key)
+                    and confirm_track_key == playing_track_key
+                )
+                progressed = (
+                    playing_elapsed is not None
+                    and confirm_elapsed is not None
+                    and confirm_elapsed > playing_elapsed
+                )
+
+                if not same_track or progressed or confirm_elapsed is None:
+                    confirmed = True
+                    break
+
+        if not confirmed:
+            logging.info(
+                "Ignoring transient PLAYING state for room %s (likely paused connect/handoff).",
+                room,
+            )
+            playing = False
+        else:
+            now = time.monotonic()
+            sonos_is_playing._last_true = now
+    elif playing:
+        sonos_is_playing._last_true = now
 
     last_true_age = now - getattr(sonos_is_playing, "_last_true", 0)
     recent_true = last_true_age < grace_seconds
