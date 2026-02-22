@@ -239,6 +239,8 @@ def sonos_is_playing(
     transition_hold_seconds=20,
     force_refresh=False,
     cache_seconds=5,
+    cold_start_confirm_attempts=4,
+    cold_start_confirm_interval_seconds=2.0,
 ):
     def _fetch_zones(force=False):
         request_ts = time.time()
@@ -315,98 +317,102 @@ def sonos_is_playing(
                 return int(raw)
         return None
 
+    def _playback_snapshot(zone_group):
+        if not isinstance(zone_group, dict):
+            return {
+                "playing": False,
+                "transitioning": False,
+                "has_track": False,
+                "track_key": "",
+                "elapsed": None,
+            }
+        members = zone_group.get("members")
+        if not isinstance(members, list):
+            members = []
+        coordinator = next(
+            (m for m in members if isinstance(m, dict) and m.get("coordinator")), None
+        )
+        members_to_check = [coordinator] if coordinator else members
+
+        snapshot = {
+            "playing": False,
+            "transitioning": False,
+            "has_track": False,
+            "track_key": "",
+            "elapsed": None,
+        }
+        for m in members_to_check:
+            if not isinstance(m, dict):
+                continue
+            st = m.get("state")
+            if not isinstance(st, dict):
+                continue
+            current_track = st.get("currentTrack")
+            if not isinstance(current_track, dict):
+                current_track = {}
+            state = _transport_state(st)
+            has_track = current_track.get("type") == "track" and current_track.get("title")
+
+            if state == "PLAYING" and has_track:
+                snapshot["playing"] = True
+                snapshot["has_track"] = True
+                snapshot["track_key"] = _track_key(current_track)
+                snapshot["elapsed"] = _elapsed_seconds(st)
+                return snapshot
+            if state == "TRANSITIONING" and has_track:
+                snapshot["transitioning"] = True
+        return snapshot
+
     now = time.monotonic()
-    playing = False
-    transitioning = False
-    playing_track_key = ""
-    playing_elapsed = None
-    members = grp.get("members") if isinstance(grp, dict) else None
-    if not isinstance(members, list):
-        members = []
-
-    coordinator = next(
-        (m for m in members if isinstance(m, dict) and m.get("coordinator")), None
-    )
-    members_to_check = [coordinator] if coordinator else members
-
-    for m in members_to_check:
-        if not isinstance(m, dict):
-            continue
-        st = m.get("state")
-        if not isinstance(st, dict):
-            continue
-        current_track = st.get("currentTrack")
-        if not isinstance(current_track, dict):
-            current_track = {}
-
-        state = _transport_state(st)
-        has_track = current_track.get("type") == "track" and current_track.get("title")
-
-        if state == "PLAYING" and has_track:
-            playing = True
-            playing_track_key = _track_key(current_track)
-            playing_elapsed = _elapsed_seconds(st)
-            break
-        if state == "TRANSITIONING" and has_track:
-            transitioning = True
+    snapshot = _playback_snapshot(grp)
+    playing = snapshot["playing"]
+    transitioning = snapshot["transitioning"]
+    playing_track_key = snapshot["track_key"]
+    playing_elapsed = snapshot["elapsed"]
 
     last_true_age = now - getattr(sonos_is_playing, "_last_true", 0)
 
-    # On a cold wake, confirm playback is still active shortly after connect.
-    # This avoids waking on brief PLAYING blips when Spotify Connect attaches
-    # to a paused Sonos session.
+    # On a cold wake, confirm playback really starts (elapsed time advances
+    # or track changes). This avoids waking on PLAYING blips when Spotify
+    # Connect attaches to a paused Sonos session.
     if playing and last_true_age >= grace_seconds:
-        time.sleep(2.0)
-        confirm_zones = _fetch_zones(force=True)
-        confirm_grp = _find_group_for_room(confirm_zones, room)
         confirmed = False
-        if confirm_grp and isinstance(confirm_grp.get("members"), list):
-            confirm_members = confirm_grp.get("members")
-            confirm_coordinator = next(
-                (
-                    m
-                    for m in confirm_members
-                    if isinstance(m, dict) and m.get("coordinator")
-                ),
-                None,
-            )
-            confirm_members_to_check = (
-                [confirm_coordinator] if confirm_coordinator else confirm_members
-            )
-            for m in confirm_members_to_check:
-                if not isinstance(m, dict):
-                    continue
-                st = m.get("state")
-                if not isinstance(st, dict):
-                    continue
-                track = st.get("currentTrack")
-                if not isinstance(track, dict):
-                    continue
-                state = _transport_state(st)
-                has_track = track.get("type") == "track" and track.get("title")
-                if state != "PLAYING" or not has_track:
-                    continue
+        baseline_track_key = playing_track_key
+        baseline_elapsed = playing_elapsed
 
-                confirm_track_key = _track_key(track)
-                confirm_elapsed = _elapsed_seconds(st)
-                same_track = (
-                    bool(playing_track_key)
-                    and bool(confirm_track_key)
-                    and confirm_track_key == playing_track_key
-                )
-                progressed = (
-                    playing_elapsed is not None
-                    and confirm_elapsed is not None
-                    and confirm_elapsed > playing_elapsed
-                )
+        for _ in range(max(1, int(cold_start_confirm_attempts))):
+            time.sleep(max(0.1, float(cold_start_confirm_interval_seconds)))
+            confirm_zones = _fetch_zones(force=True)
+            confirm_grp = _find_group_for_room(confirm_zones, room)
+            confirm_snapshot = _playback_snapshot(confirm_grp)
 
-                if not same_track or progressed or confirm_elapsed is None:
-                    confirmed = True
-                    break
+            if not confirm_snapshot["playing"]:
+                break
+
+            confirm_track_key = confirm_snapshot["track_key"]
+            confirm_elapsed = confirm_snapshot["elapsed"]
+
+            track_changed = (
+                bool(baseline_track_key)
+                and bool(confirm_track_key)
+                and confirm_track_key != baseline_track_key
+            )
+            progressed = (
+                baseline_elapsed is not None
+                and confirm_elapsed is not None
+                and confirm_elapsed > baseline_elapsed
+            )
+
+            if track_changed or progressed:
+                confirmed = True
+                break
 
         if not confirmed:
             logging.info(
-                "Ignoring transient PLAYING state for room %s (likely paused connect/handoff).",
+                (
+                    "Ignoring transient PLAYING state for room %s "
+                    "(no progression confirmed; likely paused connect/handoff)."
+                ),
                 room,
             )
             playing = False
