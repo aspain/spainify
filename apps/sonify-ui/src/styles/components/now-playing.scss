@@ -108,13 +108,19 @@
     justify-content: center;
   }
 
-  &--boost-soft {
+  &--track-boost-soft {
     --np-track-size: var(--np-track-size-boost-soft);
+  }
+
+  &--track-boost-strong {
+    --np-track-size: var(--np-track-size-boost-strong);
+  }
+
+  &--artists-boost-soft {
     --np-artists-size: var(--np-artists-size-boost-soft);
   }
 
-  &--boost-strong {
-    --np-track-size: var(--np-track-size-boost-strong);
+  &--artists-boost-strong {
     --np-artists-size: var(--np-artists-size-boost-strong);
   }
 

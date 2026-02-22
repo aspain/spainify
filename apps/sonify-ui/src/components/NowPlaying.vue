@@ -42,7 +42,8 @@ export default {
     return {
       titleNeedsExtended: false,
       artistsNeedExtended: false,
-      boostMode: 'none',
+      trackBoostMode: 'none',
+      artistsBoostMode: 'none',
       tightTrackArtistGap: false,
       overflowCheckRaf: 0
     }
@@ -104,8 +105,10 @@ export default {
 
       if (this.titleNeedsExtended) classes.push('now-playing--title-extended')
       if (this.artistsNeedExtended) classes.push('now-playing--artists-extended')
-      if (this.boostMode === 'soft') classes.push('now-playing--boost-soft')
-      if (this.boostMode === 'strong') classes.push('now-playing--boost-strong')
+      if (this.trackBoostMode === 'soft') classes.push('now-playing--track-boost-soft')
+      if (this.trackBoostMode === 'strong') classes.push('now-playing--track-boost-strong')
+      if (this.artistsBoostMode === 'soft') classes.push('now-playing--artists-boost-soft')
+      if (this.artistsBoostMode === 'strong') classes.push('now-playing--artists-boost-strong')
       if (this.tightTrackArtistGap) classes.push('now-playing--tight-title-artist-gap')
 
       return classes
@@ -172,11 +175,43 @@ export default {
       this.tightTrackArtistGap = trackLines === 3 || artistLines === 3
     },
 
+    async resolveBoostModeForElement(target) {
+      const isTrack = target === 'track'
+      const isArtists = target === 'artists'
+      if (!isTrack && !isArtists) return 'none'
+
+      const setMode = mode => {
+        if (isTrack) {
+          this.trackBoostMode = mode
+          return
+        }
+        this.artistsBoostMode = mode
+      }
+
+      const hasOverflow = () => {
+        const overflow = this.getNowPlayingOverflow()
+        return isTrack ? overflow.track : overflow.artists
+      }
+
+      setMode('strong')
+      await this.$nextTick()
+      if (!hasOverflow()) return 'strong'
+
+      setMode('soft')
+      await this.$nextTick()
+      if (!hasOverflow()) return 'soft'
+
+      setMode('none')
+      await this.$nextTick()
+      return 'none'
+    },
+
     async updateOverflowState() {
       if (!this.player.playing) {
         this.titleNeedsExtended = false
         this.artistsNeedExtended = false
-        this.boostMode = 'none'
+        this.trackBoostMode = 'none'
+        this.artistsBoostMode = 'none'
         this.tightTrackArtistGap = false
         return
       }
@@ -188,7 +223,8 @@ export default {
       // Baseline state: 3-line title / 2-line artists with no boost.
       this.titleNeedsExtended = false
       this.artistsNeedExtended = false
-      this.boostMode = 'none'
+      this.trackBoostMode = 'none'
+      this.artistsBoostMode = 'none'
       await this.$nextTick()
 
       const baseOverflow = this.getNowPlayingOverflow()
@@ -196,30 +232,14 @@ export default {
       this.artistsNeedExtended = baseOverflow.artists
 
       if (this.titleNeedsExtended || this.artistsNeedExtended) {
-        this.boostMode = 'none'
+        this.trackBoostMode = 'none'
+        this.artistsBoostMode = 'none'
         this.updateTrackArtistGapState(trackElement, artistsElement)
         return
       }
 
-      // Try strong boost first, then fall back to soft, then none.
-      this.boostMode = 'strong'
-      await this.$nextTick()
-      const strongOverflow = this.getNowPlayingOverflow()
-      if (!strongOverflow.track && !strongOverflow.artists) {
-        this.updateTrackArtistGapState(trackElement, artistsElement)
-        return
-      }
-
-      this.boostMode = 'soft'
-      await this.$nextTick()
-      const softOverflow = this.getNowPlayingOverflow()
-      if (!softOverflow.track && !softOverflow.artists) {
-        this.updateTrackArtistGapState(trackElement, artistsElement)
-        return
-      }
-
-      this.boostMode = 'none'
-      await this.$nextTick()
+      this.trackBoostMode = await this.resolveBoostModeForElement('track')
+      this.artistsBoostMode = await this.resolveBoostModeForElement('artists')
       this.updateTrackArtistGapState(trackElement, artistsElement)
     },
 
@@ -381,7 +401,8 @@ export default {
       if (!isPlaying) {
         this.titleNeedsExtended = false
         this.artistsNeedExtended = false
-        this.boostMode = 'none'
+        this.trackBoostMode = 'none'
+        this.artistsBoostMode = 'none'
         this.tightTrackArtistGap = false
       }
       this.scheduleOverflowCheck()
