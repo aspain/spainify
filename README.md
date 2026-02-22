@@ -130,7 +130,7 @@ For multi-Pi setups, run these commands on each Pi.
 
 1. Flash Raspberry Pi OS with [Raspberry Pi Imager](https://www.raspberrypi.com/software/), insert the card, and boot the Pi.
 2. On first boot on the Pi, create your username/password and connect to Wi-Fi (or Ethernet).
-3. Enable SSH on the Pi (Raspberry Pi Configuration -> Interfaces -> SSH -> Enable).
+3. Enable SSH on the Pi (Preferences -> Control Center -> Interfaces -> SSH -> Enable).
 4. From your laptop, run setup with the Pi hostname:
    ```bash
    git clone https://github.com/aspain/spainify.git
