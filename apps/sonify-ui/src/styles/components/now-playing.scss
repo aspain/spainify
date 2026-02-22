@@ -108,6 +108,12 @@
     justify-content: center;
   }
 
+  &--layout-pending {
+    .now-playing__details {
+      visibility: hidden;
+    }
+  }
+
   &--track-boost-soft {
     --np-track-size: var(--np-track-size-boost-soft);
   }

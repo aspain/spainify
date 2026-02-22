@@ -45,7 +45,9 @@ export default {
       trackBoostMode: 'none',
       artistsBoostMode: 'none',
       tightTrackArtistGap: false,
-      overflowCheckRaf: 0
+      overflowCheckRaf: 0,
+      overflowCheckVersion: 0,
+      layoutReady: true
     }
   },
 
@@ -110,8 +112,15 @@ export default {
       if (this.artistsBoostMode === 'soft') classes.push('now-playing--artists-boost-soft')
       if (this.artistsBoostMode === 'strong') classes.push('now-playing--artists-boost-strong')
       if (this.tightTrackArtistGap) classes.push('now-playing--tight-title-artist-gap')
+      if (this.player.playing && !this.layoutReady) {
+        classes.push('now-playing--layout-pending')
+      }
 
       return classes
+    },
+
+    isOverflowCheckStale(checkId) {
+      return checkId !== this.overflowCheckVersion
     },
 
     handleWindowResize() {
@@ -119,15 +128,19 @@ export default {
     },
 
     scheduleOverflowCheck() {
+      const checkId = ++this.overflowCheckVersion
       if (this.overflowCheckRaf) {
         window.cancelAnimationFrame(this.overflowCheckRaf)
         this.overflowCheckRaf = 0
       }
+      this.layoutReady = !this.player.playing
 
       this.$nextTick(() => {
+        if (this.isOverflowCheckStale(checkId)) return
         this.overflowCheckRaf = window.requestAnimationFrame(() => {
+          if (this.isOverflowCheckStale(checkId)) return
           this.overflowCheckRaf = 0
-          this.updateOverflowState()
+          this.updateOverflowState(checkId)
         })
       })
     },
@@ -175,10 +188,11 @@ export default {
       this.tightTrackArtistGap = trackLines === 3 || artistLines === 3
     },
 
-    async resolveBoostModeForElement(target) {
+    async resolveBoostModeForElement(target, checkId) {
       const isTrack = target === 'track'
       const isArtists = target === 'artists'
       if (!isTrack && !isArtists) return 'none'
+      if (this.isOverflowCheckStale(checkId)) return 'none'
 
       const setMode = mode => {
         if (isTrack) {
@@ -195,52 +209,69 @@ export default {
 
       setMode('strong')
       await this.$nextTick()
+      if (this.isOverflowCheckStale(checkId)) return 'none'
       if (!hasOverflow()) return 'strong'
 
       setMode('soft')
       await this.$nextTick()
+      if (this.isOverflowCheckStale(checkId)) return 'none'
       if (!hasOverflow()) return 'soft'
 
       setMode('none')
       await this.$nextTick()
+      if (this.isOverflowCheckStale(checkId)) return 'none'
       return 'none'
     },
 
-    async updateOverflowState() {
-      if (!this.player.playing) {
+    async updateOverflowState(checkId = this.overflowCheckVersion) {
+      try {
+        if (this.isOverflowCheckStale(checkId)) return
+
+        if (!this.player.playing) {
+          this.titleNeedsExtended = false
+          this.artistsNeedExtended = false
+          this.trackBoostMode = 'none'
+          this.artistsBoostMode = 'none'
+          this.tightTrackArtistGap = false
+          return
+        }
+
+        const trackElement = this.$refs.trackText
+        const artistsElement = this.$refs.artistsText
+        if (!trackElement || !artistsElement) return
+
+        // Baseline state: 3-line title / 2-line artists with no boost.
         this.titleNeedsExtended = false
         this.artistsNeedExtended = false
         this.trackBoostMode = 'none'
         this.artistsBoostMode = 'none'
-        this.tightTrackArtistGap = false
-        return
-      }
+        await this.$nextTick()
+        if (this.isOverflowCheckStale(checkId)) return
 
-      const trackElement = this.$refs.trackText
-      const artistsElement = this.$refs.artistsText
-      if (!trackElement || !artistsElement) return
+        const baseOverflow = this.getNowPlayingOverflow()
+        this.titleNeedsExtended = baseOverflow.track
+        this.artistsNeedExtended = baseOverflow.artists
 
-      // Baseline state: 3-line title / 2-line artists with no boost.
-      this.titleNeedsExtended = false
-      this.artistsNeedExtended = false
-      this.trackBoostMode = 'none'
-      this.artistsBoostMode = 'none'
-      await this.$nextTick()
+        if (this.titleNeedsExtended || this.artistsNeedExtended) {
+          this.trackBoostMode = 'none'
+          this.artistsBoostMode = 'none'
+          this.updateTrackArtistGapState(trackElement, artistsElement)
+          return
+        }
 
-      const baseOverflow = this.getNowPlayingOverflow()
-      this.titleNeedsExtended = baseOverflow.track
-      this.artistsNeedExtended = baseOverflow.artists
-
-      if (this.titleNeedsExtended || this.artistsNeedExtended) {
-        this.trackBoostMode = 'none'
-        this.artistsBoostMode = 'none'
+        this.trackBoostMode = await this.resolveBoostModeForElement('track', checkId)
+        if (this.isOverflowCheckStale(checkId)) return
+        this.artistsBoostMode = await this.resolveBoostModeForElement(
+          'artists',
+          checkId
+        )
+        if (this.isOverflowCheckStale(checkId)) return
         this.updateTrackArtistGapState(trackElement, artistsElement)
-        return
+      } finally {
+        if (!this.isOverflowCheckStale(checkId)) {
+          this.layoutReady = true
+        }
       }
-
-      this.trackBoostMode = await this.resolveBoostModeForElement('track')
-      this.artistsBoostMode = await this.resolveBoostModeForElement('artists')
-      this.updateTrackArtistGapState(trackElement, artistsElement)
     },
 
     updateColors(imageUrl) {
@@ -404,6 +435,7 @@ export default {
         this.trackBoostMode = 'none'
         this.artistsBoostMode = 'none'
         this.tightTrackArtistGap = false
+        this.layoutReady = true
       }
       this.scheduleOverflowCheck()
     }
