@@ -26,12 +26,14 @@ This project contains a set of locally hosted apps and services with features in
 
 ## First-Time Setup
 
+See [Setting up Pi from Scratch](#setting-up-pi-from-scratch) to prepare your Pi for install.
+
 Use this from your laptop/desktop terminal (recommended):
 
 ```bash
 git clone https://github.com/aspain/spainify.git
 cd spainify
-./scripts/setup-remote.sh <pi-user>@<pi-ip> --fresh
+./scripts/setup-remote.sh <pi-user>@<pi-host-or-ip> --fresh
 ```
 
 This is the main setup command. It connects to the Pi over SSH, runs the setup wizard, and runs redeploy.
@@ -69,7 +71,7 @@ cd ~/spainify
 To change service choices later, just re-run setup:
 
 ```bash
-./scripts/setup-remote.sh <pi-user>@<pi-ip>
+./scripts/setup-remote.sh <pi-user>@<pi-host-or-ip>
 ```
 
 ---
@@ -112,17 +114,33 @@ It prefers Spotify playback when available and automatically falls back to Sonos
 Use this after code changes to pull and redeploy enabled services on a configured Pi:
 
 ```bash
-ssh <pi-user>@<pi-ip> 'cd ~/spainify && git pull --ff-only && ./scripts/redeploy.sh'
+ssh <pi-user>@<pi-host-or-ip> 'cd ~/spainify && git pull --ff-only && ./scripts/redeploy.sh'
 ```
 
 Use setup when you need to change service enablement, room selection, or other setup-driven config:
 
 ```bash
 cd /path/to/spainify
-./scripts/setup-remote.sh <pi-user>@<pi-ip>
+./scripts/setup-remote.sh <pi-user>@<pi-host-or-ip>
 ```
 
 For multi-Pi setups, run these commands on each Pi.
+
+## Setting up Pi from Scratch
+
+1. Flash Raspberry Pi OS with [Raspberry Pi Imager](https://www.raspberrypi.com/software/), insert the card, and boot the Pi.
+2. On first boot on the Pi, create your username/password and connect to Wi-Fi (or Ethernet).
+3. Enable SSH on the Pi (Raspberry Pi Configuration -> Interfaces -> SSH -> Enable).
+4. From your laptop, run setup with the Pi hostname:
+   ```bash
+   git clone https://github.com/aspain/spainify.git
+   cd spainify
+   ./scripts/setup-remote.sh <pi-user>@raspberrypi.local --fresh
+   ```
+5. If that hostname does not work, run `hostname -I` on the Pi, copy the first IP, and re-run setup:
+   ```bash
+   ./scripts/setup-remote.sh <pi-user>@<pi-ip> --fresh
+   ```
 
 ## Command Cheat Sheet
 
@@ -130,23 +148,23 @@ Use these for checks and troubleshooting after setup.
 
 ```bash
 # Run full post-deploy healthcheck
-ssh <pi-user>@<pi-ip> 'cd ~/spainify && ./scripts/healthcheck.sh'
+ssh <pi-user>@<pi-host-or-ip> 'cd ~/spainify && ./scripts/healthcheck.sh'
 
 # Check service status quickly
-ssh <pi-user>@<pi-ip> 'for s in media-actions-api display-controller weather-dashboard sonos-http-api sonify-ui; do printf "%-20s active=%-8s enabled=%s\n" "$s" "$(systemctl is-active "$s".service)" "$(systemctl is-enabled "$s".service)"; done'
+ssh <pi-user>@<pi-host-or-ip> 'for s in media-actions-api display-controller weather-dashboard sonos-http-api sonify-ui; do printf "%-20s active=%-8s enabled=%s\n" "$s" "$(systemctl is-active "$s".service)" "$(systemctl is-enabled "$s".service)"; done'
 
 # Restart one service
-ssh <pi-user>@<pi-ip> 'sudo systemctl restart display-controller.service'
+ssh <pi-user>@<pi-host-or-ip> 'sudo systemctl restart display-controller.service'
 
 # Restart all core services
-ssh <pi-user>@<pi-ip> 'sudo systemctl restart media-actions-api.service display-controller.service weather-dashboard.service sonos-http-api.service sonify-ui.service'
+ssh <pi-user>@<pi-host-or-ip> 'sudo systemctl restart media-actions-api.service display-controller.service weather-dashboard.service sonos-http-api.service sonify-ui.service'
 
 # Tail logs for a specific service
-ssh <pi-user>@<pi-ip> 'journalctl -u media-actions-api.service -f -n 100'
+ssh <pi-user>@<pi-host-or-ip> 'journalctl -u media-actions-api.service -f -n 100'
 
 # API smoke checks from Pi
-ssh <pi-user>@<pi-ip> 'curl -sS http://127.0.0.1:3030/health; echo'
-ssh <pi-user>@<pi-ip> 'curl -sS -o /dev/null -w "%{http_code}\n" -X OPTIONS http://127.0.0.1:3030/media-actions-smart'
+ssh <pi-user>@<pi-host-or-ip> 'curl -sS http://127.0.0.1:3030/health; echo'
+ssh <pi-user>@<pi-host-or-ip> 'curl -sS -o /dev/null -w "%{http_code}\n" -X OPTIONS http://127.0.0.1:3030/media-actions-smart'
 ```
 
 ---
