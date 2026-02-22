@@ -188,39 +188,50 @@ export default {
       this.tightTrackArtistGap = trackLines === 3 || artistLines === 3
     },
 
-    async resolveBoostModeForElement(target, checkId) {
-      const isTrack = target === 'track'
-      const isArtists = target === 'artists'
-      if (!isTrack && !isArtists) return 'none'
-      if (this.isOverflowCheckStale(checkId)) return 'none'
-
-      const setMode = mode => {
-        if (isTrack) {
-          this.trackBoostMode = mode
-          return
-        }
-        this.artistsBoostMode = mode
-      }
-
-      const hasOverflow = () => {
-        const overflow = this.getNowPlayingOverflow()
-        return isTrack ? overflow.track : overflow.artists
-      }
-
-      setMode('strong')
-      await this.$nextTick()
-      if (this.isOverflowCheckStale(checkId)) return 'none'
-      if (!hasOverflow()) return 'strong'
-
-      setMode('soft')
-      await this.$nextTick()
-      if (this.isOverflowCheckStale(checkId)) return 'none'
-      if (!hasOverflow()) return 'soft'
-
-      setMode('none')
-      await this.$nextTick()
-      if (this.isOverflowCheckStale(checkId)) return 'none'
+    getPreferredBoostMode(lineCount) {
+      if (!Number.isFinite(lineCount) || lineCount <= 0) return 'none'
+      if (lineCount === 1) return 'strong'
+      if (lineCount === 2) return 'soft'
       return 'none'
+    },
+
+    getLowerBoostMode(mode) {
+      if (mode === 'strong') return 'soft'
+      if (mode === 'soft') return 'none'
+      return 'none'
+    },
+
+    async downshiftBoostModesUntilNoOverflow(checkId) {
+      let overflow = this.getNowPlayingOverflow()
+      let attempts = 0
+
+      while ((overflow.track || overflow.artists) && attempts < 4) {
+        if (this.isOverflowCheckStale(checkId)) return
+
+        let changed = false
+        if (overflow.track) {
+          const nextTrackMode = this.getLowerBoostMode(this.trackBoostMode)
+          if (nextTrackMode !== this.trackBoostMode) {
+            this.trackBoostMode = nextTrackMode
+            changed = true
+          }
+        }
+
+        if (overflow.artists) {
+          const nextArtistsMode = this.getLowerBoostMode(this.artistsBoostMode)
+          if (nextArtistsMode !== this.artistsBoostMode) {
+            this.artistsBoostMode = nextArtistsMode
+            changed = true
+          }
+        }
+
+        if (!changed) return
+
+        await this.$nextTick()
+        if (this.isOverflowCheckStale(checkId)) return
+        overflow = this.getNowPlayingOverflow()
+        attempts += 1
+      }
     },
 
     async updateOverflowState(checkId = this.overflowCheckVersion) {
@@ -259,13 +270,16 @@ export default {
           return
         }
 
-        this.trackBoostMode = await this.resolveBoostModeForElement('track', checkId)
+        const trackLines = this.getRenderedLineCount(trackElement)
+        const artistLines = this.getRenderedLineCount(artistsElement)
+        this.trackBoostMode = this.getPreferredBoostMode(trackLines)
+        this.artistsBoostMode = this.getPreferredBoostMode(artistLines)
+        await this.$nextTick()
         if (this.isOverflowCheckStale(checkId)) return
-        this.artistsBoostMode = await this.resolveBoostModeForElement(
-          'artists',
-          checkId
-        )
+
+        await this.downshiftBoostModesUntilNoOverflow(checkId)
         if (this.isOverflowCheckStale(checkId)) return
+
         this.updateTrackArtistGapState(trackElement, artistsElement)
       } finally {
         if (!this.isOverflowCheckStale(checkId)) {
