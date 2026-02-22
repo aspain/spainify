@@ -104,28 +104,15 @@ export default {
       return request
     },
 
-    async enrichPlayerFromSpotify(trackId, expectedTrackKey) {
-      const metadata = await this.fetchSpotifyTrackMetadata(trackId)
-      if (!metadata) return
-      if (!this.player.playing || this.player.trackKey !== expectedTrackKey) return
+    async fetchSpotifyTrackMetadataWithTimeout(trackId, timeoutMs = 1400) {
+      if (!trackId) return null
 
-      const nextTitle = metadata.title || this.player.trackTitle
-      const nextArtists = metadata.artists.length
-        ? metadata.artists
-        : this.player.trackArtists
-      const nextImage = metadata.albumImage || this.player.trackAlbum.image
-      const nextPaletteSrc = this.player.trackAlbum.paletteSrc || metadata.albumImage
+      const metadataPromise = this.fetchSpotifyTrackMetadata(trackId)
+      const timeoutPromise = new Promise(resolve => {
+        setTimeout(() => resolve(null), timeoutMs)
+      })
 
-      this.player = {
-        playing: this.player.playing,
-        trackTitle: nextTitle,
-        trackArtists: nextArtists,
-        trackKey: this.player.trackKey,
-        trackAlbum: {
-          image: nextImage,
-          paletteSrc: nextPaletteSrc || ''
-        }
-      }
+      return Promise.race([metadataPromise, timeoutPromise])
     },
 
     /* ─────────────────────────────────────────────────────────────
@@ -137,9 +124,12 @@ export default {
       let   lastActive   = 0;
       let   lastPlayer   = this.player;
       let   cachedSonosIP = '';           // ← NEW
-      let   lastMetadataTrackKey = '';
+      let   pollInFlight = false;
 
       const checkState = async () => {
+        if (pollInFlight) return
+        pollInFlight = true
+
         try {
           const res   = await fetch('http://localhost:5005/zones');
           const zones = await res.json();
@@ -241,11 +231,6 @@ export default {
               const trackTitle = trackState.title || ''
               const trackArtist = trackState.artist || ''
               const trackId = this.extractSpotifyTrackId(trackState.uri || '')
-              const cachedSpotifyMetadata = trackId
-                ? this.spotifyTrackMetaCache[trackId]
-                : null
-
-              /* Update reactive data */
               const trackKey =
                 trackId ||
                 trackState.uri ||
@@ -258,28 +243,39 @@ export default {
                   .filter(Boolean)
                   .join('::')
 
+              const isTrackTransition =
+                !this.player.playing || this.player.trackKey !== trackKey
+              const cachedSpotifyMetadata = trackId
+                ? this.spotifyTrackMetaCache[trackId]
+                : null
+              const resolvedSpotifyMetadata =
+                trackId && isTrackTransition && !cachedSpotifyMetadata
+                  ? await this.fetchSpotifyTrackMetadataWithTimeout(trackId)
+                  : cachedSpotifyMetadata
+
+              /* Update reactive data */
               const resolvedTitle =
-                cachedSpotifyMetadata && cachedSpotifyMetadata.title
-                  ? cachedSpotifyMetadata.title
+                resolvedSpotifyMetadata && resolvedSpotifyMetadata.title
+                  ? resolvedSpotifyMetadata.title
                   : trackTitle
 
               const resolvedArtists =
-                cachedSpotifyMetadata &&
-                Array.isArray(cachedSpotifyMetadata.artists) &&
-                cachedSpotifyMetadata.artists.length > 0
-                  ? cachedSpotifyMetadata.artists
+                resolvedSpotifyMetadata &&
+                Array.isArray(resolvedSpotifyMetadata.artists) &&
+                resolvedSpotifyMetadata.artists.length > 0
+                  ? resolvedSpotifyMetadata.artists
                   : (trackArtist ? [trackArtist] : [])
 
               const resolvedImage =
-                cachedSpotifyMetadata && cachedSpotifyMetadata.albumImage
-                  ? cachedSpotifyMetadata.albumImage
+                resolvedSpotifyMetadata && resolvedSpotifyMetadata.albumImage
+                  ? resolvedSpotifyMetadata.albumImage
                   : image
 
               const resolvedPaletteSrc =
                 paletteSrc ||
                 (
-                  cachedSpotifyMetadata && cachedSpotifyMetadata.albumImage
-                    ? cachedSpotifyMetadata.albumImage
+                  resolvedSpotifyMetadata && resolvedSpotifyMetadata.albumImage
+                    ? resolvedSpotifyMetadata.albumImage
                     : ''
                 )
 
@@ -294,20 +290,12 @@ export default {
                 }
               };
 
-              if (trackId && !cachedSpotifyMetadata && trackKey !== lastMetadataTrackKey) {
-                lastMetadataTrackKey = trackKey
-                this.enrichPlayerFromSpotify(trackId, trackKey)
-              } else if (!trackId) {
-                lastMetadataTrackKey = trackKey
-              }
-
               lastActive = Date.now();
               lastPlayer = this.player;
             } else {
               /* 3 ─ Target zone exists but is not actively playing */
               if (Date.now() - lastActive > GRACE_MS) {
                 this.player.playing = false
-                lastMetadataTrackKey = ''
               } else {
                 this.player = lastPlayer
               }
@@ -316,13 +304,14 @@ export default {
             /* 3 ─ Target zone missing; grace period avoids flicker */
             if (Date.now() - lastActive > GRACE_MS) {
               this.player.playing = false;   // show idle
-              lastMetadataTrackKey = ''
             } else {
               this.player = lastPlayer;      // keep showing last track
             }
           }
         } catch (err) {
           console.error('Sonos API error:', err);
+        } finally {
+          pollInFlight = false
         }
       };
 
