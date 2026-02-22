@@ -33,7 +33,7 @@ Use this from your laptop/desktop terminal (recommended):
 ```bash
 git clone https://github.com/aspain/spainify.git
 cd spainify
-./scripts/setup-remote.sh <pi-user>@<pi-host-or-ip> --fresh
+./scripts/setup-remote.sh <pi-user>@<pi-ip> --fresh
 ```
 
 This is the main setup command. It connects to the Pi over SSH, runs the setup wizard, and runs redeploy.
@@ -131,16 +131,7 @@ For multi-Pi setups, run these commands on each Pi.
 1. Flash Raspberry Pi OS with [Raspberry Pi Imager](https://www.raspberrypi.com/software/), insert the card, and boot the Pi.
 2. On first boot on the Pi, create your username/password and connect to Wi-Fi (or Ethernet).
 3. Enable SSH on the Pi (Preferences -> Control Center -> Interfaces -> SSH -> Enable).
-4. From your laptop, run setup with the Pi hostname:
-   ```bash
-   git clone https://github.com/aspain/spainify.git
-   cd spainify
-   ./scripts/setup-remote.sh <pi-user>@raspberrypi.local --fresh
-   ```
-5. If that hostname does not work, run `hostname -I` on the Pi, copy the first IP, and re-run setup:
-   ```bash
-   ./scripts/setup-remote.sh <pi-user>@<pi-ip> --fresh
-   ```
+4. Continue with [First-Time Setup](#first-time-setup) and use `user@ip` in the setup command. Get the IP on the Pi with `hostname -I` (use the first value), for example: `alex@192.168.1.42`.
 
 ## Command Cheat Sheet
 
