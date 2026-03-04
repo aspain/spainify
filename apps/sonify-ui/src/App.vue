@@ -50,6 +50,38 @@ export default {
       return ''
     },
 
+    parseElapsedSeconds(state) {
+      if (!state || typeof state !== 'object') return null
+
+      const raw = state.elapsedTime
+      if (typeof raw === 'number' && Number.isFinite(raw)) {
+        return Math.max(0, Math.floor(raw))
+      }
+
+      if (typeof raw !== 'string') return null
+      const value = raw.trim()
+      if (!value) return null
+
+      if (/^\d+$/.test(value)) {
+        return Number.parseInt(value, 10)
+      }
+
+      const parts = value.split(':').map(part => part.trim())
+      if (!parts.every(part => /^\d+$/.test(part))) return null
+
+      if (parts.length === 2) {
+        const [minutes, seconds] = parts.map(part => Number.parseInt(part, 10))
+        return (minutes * 60) + seconds
+      }
+
+      if (parts.length === 3) {
+        const [hours, minutes, seconds] = parts.map(part => Number.parseInt(part, 10))
+        return (hours * 3600) + (minutes * 60) + seconds
+      }
+
+      return null
+    },
+
     extractSpotifyTrackId(uri) {
       if (!uri) return ''
 
@@ -121,9 +153,11 @@ export default {
        ──────────────────────────────────────────────────────────── */
     async pollSonosState() {
       const GRACE_MS     = 5000;          // 5-second cushion
+      const COLD_START_CONFIRM_MAX_MS = 7000;
       let   lastActive   = 0;
       let   lastPlayer   = this.player;
       let   cachedSonosIP = '';           // ← NEW
+      let   coldStartPending = null;
       let   pollInFlight = false;
 
       const checkState = async () => {
@@ -161,6 +195,54 @@ export default {
               this.getTransportState(state) === 'PLAYING'
 
             if (isPlaying) {
+              const nowMs = Date.now()
+              const trackTitle = trackState.title || ''
+              const trackArtist = trackState.artist || ''
+              const trackId = this.extractSpotifyTrackId(trackState.uri || '')
+              const trackKey =
+                trackId ||
+                trackState.uri ||
+                [
+                  trackTitle,
+                  trackArtist,
+                  trackState.absoluteAlbumArtUri,
+                  trackState.albumArtUri
+                ]
+                  .filter(Boolean)
+                  .join('::')
+              const elapsedSeconds = this.parseElapsedSeconds(state)
+
+              const isColdWake = (nowMs - lastActive) > GRACE_MS
+              if (isColdWake) {
+                if (!coldStartPending) {
+                  coldStartPending = {
+                    trackKey,
+                    elapsedSeconds,
+                    startedAt: nowMs
+                  }
+                  this.player.playing = false
+                  return
+                }
+
+                const keyChanged =
+                  Boolean(coldStartPending.trackKey) &&
+                  Boolean(trackKey) &&
+                  trackKey !== coldStartPending.trackKey
+                const progressed =
+                  coldStartPending.elapsedSeconds !== null &&
+                  elapsedSeconds !== null &&
+                  elapsedSeconds > coldStartPending.elapsedSeconds
+                const timedOut =
+                  (nowMs - coldStartPending.startedAt) >= COLD_START_CONFIRM_MAX_MS
+
+                if (!keyChanged && !progressed && !timedOut) {
+                  this.player.playing = false
+                  return
+                }
+              }
+
+              coldStartPending = null
+
               /* ── Discover / remember the speaker’s IP ───────────────────── */
               let sonosIP = coordinator.ip || '';
 
@@ -227,21 +309,6 @@ export default {
                 image.includes(':1400/') || image.includes(`://${sonosIP}:1400`)
                   ? `http://localhost:5005/album-art?url=${encodeURIComponent(image)}`
                   : image;
-
-              const trackTitle = trackState.title || ''
-              const trackArtist = trackState.artist || ''
-              const trackId = this.extractSpotifyTrackId(trackState.uri || '')
-              const trackKey =
-                trackId ||
-                trackState.uri ||
-                [
-                  trackTitle,
-                  trackArtist,
-                  trackState.absoluteAlbumArtUri,
-                  trackState.albumArtUri
-                ]
-                  .filter(Boolean)
-                  .join('::')
 
               const isSameTrack =
                 this.player.playing && this.player.trackKey === trackKey
@@ -317,6 +384,7 @@ export default {
               lastActive = Date.now();
               lastPlayer = this.player;
             } else {
+              coldStartPending = null
               /* 3 ─ Target zone exists but is not actively playing */
               if (Date.now() - lastActive > GRACE_MS) {
                 this.player.playing = false
@@ -325,6 +393,7 @@ export default {
               }
             }
           } else {
+            coldStartPending = null
             /* 3 ─ Target zone missing; grace period avoids flicker */
             if (Date.now() - lastActive > GRACE_MS) {
               this.player.playing = false;   // show idle
