@@ -35,6 +35,9 @@ app.use((req, res, next) => {
 
 const recentAdds = new Map(); // trackId -> timestamp
 const RECENT_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const PLAYLIST_ITEMS_ENDPOINT_MODERN = "items";
+const PLAYLIST_ITEMS_ENDPOINT_LEGACY = "tracks";
+let playlistItemsEndpointPreference = PLAYLIST_ITEMS_ENDPOINT_MODERN;
 
 function pruneRecentAdds(now = Date.now()) {
   const cutoff = now - RECENT_TTL_MS;
@@ -56,6 +59,28 @@ function rememberAdd(trackId) {
   const now = Date.now();
   pruneRecentAdds(now);
   recentAdds.set(trackId, now);
+}
+
+function playlistItemsEndpointCandidates() {
+  if (playlistItemsEndpointPreference === PLAYLIST_ITEMS_ENDPOINT_LEGACY) {
+    return [PLAYLIST_ITEMS_ENDPOINT_LEGACY, PLAYLIST_ITEMS_ENDPOINT_MODERN];
+  }
+  return [PLAYLIST_ITEMS_ENDPOINT_MODERN, PLAYLIST_ITEMS_ENDPOINT_LEGACY];
+}
+
+function shouldFallbackPlaylistEndpoint(message = "") {
+  return /^(400|404|405|501)\b/.test(String(message || ""));
+}
+
+function getPlaylistItemTrackId(item = null) {
+  const resolved = item?.item || item?.track || item;
+  if (!resolved || typeof resolved !== "object") return null;
+
+  const resolvedType = String(resolved.type || "").toLowerCase();
+  if (resolvedType && resolvedType !== "track") return null;
+
+  const id = resolved.id;
+  return id ? String(id) : null;
 }
 
 /* ───────────────────────── Helpers ───────────────────────── */
@@ -255,20 +280,64 @@ async function fetchSpotifyJsonWithRetry(url, retries = 3, timeoutMs = 4000) {
   throw new Error("Spotify request retry exhausted");
 }
 
+async function fetchPlaylistItemsPage(limit = 1, offset = 0) {
+  const safeLimit = Math.max(1, Math.min(100, Number(limit) || 1));
+  const safeOffset = Math.max(0, Number(offset) || 0);
+  const params = new URLSearchParams({
+    limit: String(safeLimit),
+    offset: String(safeOffset)
+  });
+
+  let lastErr = null;
+  for (const endpoint of playlistItemsEndpointCandidates()) {
+    const url = `https://api.spotify.com/v1/playlists/${SPOTIFY_PLAYLIST_ID}/${endpoint}?${params.toString()}`;
+    try {
+      const j = await fetchSpotifyJsonWithRetry(url);
+      playlistItemsEndpointPreference = endpoint;
+      return j;
+    } catch (err) {
+      const message = String(err?.message || err);
+      if (shouldFallbackPlaylistEndpoint(message)) {
+        lastErr = err;
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  throw lastErr || new Error("Could not fetch playlist items");
+}
+
 async function addTrackToPlaylist(trackId) {
   if (!SPOTIFY_PLAYLIST_ID) throw new Error("Missing SPOTIFY_PLAYLIST_ID");
-  const r = await spotifyRequest(token => fetch(
-    `https://api.spotify.com/v1/playlists/${SPOTIFY_PLAYLIST_ID}/tracks`,
-    {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ uris: [`spotify:track:${trackId}`] })
+  let lastErr = null;
+
+  for (const endpoint of playlistItemsEndpointCandidates()) {
+    const r = await spotifyRequest(token => fetch(
+      `https://api.spotify.com/v1/playlists/${SPOTIFY_PLAYLIST_ID}/${endpoint}`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ uris: [`spotify:track:${trackId}`] })
+      }
+    ));
+
+    if (r.ok) {
+      playlistItemsEndpointPreference = endpoint;
+      return;
     }
-  ));
-  if (!r.ok) {
-    const t = await r.text();
-    throw new Error(`Add failed: ${r.status} ${t}`);
+
+    const t = await r.text().catch(() => "");
+    const message = `${r.status} ${t}`.trim();
+    if (shouldFallbackPlaylistEndpoint(message)) {
+      lastErr = new Error(`Add failed (${endpoint}): ${message}`);
+      continue;
+    }
+
+    throw new Error(`Add failed (${endpoint}): ${message}`);
   }
+
+  throw lastErr || new Error("Add failed: no compatible playlist endpoint");
 }
 
 // Simple JSON fetch with retry + timeout to handle transient Spotify glitches
@@ -343,26 +412,28 @@ function markPlaylistCacheWithAddedTrack(trackId, windowSize) {
 }
 
 async function fetchPlaylistMeta() {
-  const url = `https://api.spotify.com/v1/playlists/${SPOTIFY_PLAYLIST_ID}?fields=snapshot_id,tracks(total)`;
-  const j = await fetchSpotifyJsonWithRetry(url);
+  const snapshotUrl = `https://api.spotify.com/v1/playlists/${SPOTIFY_PLAYLIST_ID}?fields=snapshot_id`;
+  const [snapshotPayload, page] = await Promise.all([
+    fetchSpotifyJsonWithRetry(snapshotUrl),
+    fetchPlaylistItemsPage(1, 0)
+  ]);
+
   return {
-    snapshotId: String(j?.snapshot_id || ""),
-    total: Math.max(0, Number(j?.tracks?.total || 0))
+    snapshotId: String(snapshotPayload?.snapshot_id || ""),
+    total: Math.max(0, Number(page?.total || 0))
   };
 }
 
 async function scanPlaylistTrackIds(windowSize, total) {
   const ids = new Set();
-  const base = `https://api.spotify.com/v1/playlists/${SPOTIFY_PLAYLIST_ID}/tracks`;
   const end = Math.max(0, total);
   let offset = windowSize == null ? 0 : Math.max(0, end - windowSize);
 
   while (offset < end) {
     const limit = Math.min(100, end - offset);
-    const url = `${base}?fields=items(track(id))&limit=${limit}&offset=${offset}`;
-    const j = await fetchSpotifyJsonWithRetry(url);
+    const j = await fetchPlaylistItemsPage(limit, offset);
     for (const it of (j.items || [])) {
-      const id = it?.track?.id;
+      const id = getPlaylistItemTrackId(it);
       if (id) ids.add(id);
     }
     const got = (j.items || []).length;
@@ -396,10 +467,8 @@ async function refreshPlaylistCache(windowSize, meta = null) {
 }
 
 async function playlistHasTrackDirect(trackId, windowSize) {
-  const base = `https://api.spotify.com/v1/playlists/${SPOTIFY_PLAYLIST_ID}/tracks`;
-
   // 1) Get total
-  const meta = await fetchSpotifyJsonWithRetry(`${base}?limit=1`);
+  const meta = await fetchPlaylistItemsPage(1, 0);
   const total = Number(meta.total || 0);
 
   // 2) Scan from the end (most recent first)
@@ -408,10 +477,9 @@ async function playlistHasTrackDirect(trackId, windowSize) {
 
   while (offset < end) {
     const limit = Math.min(100, end - offset);
-    const url = `${base}?fields=items(track(id))&limit=${limit}&offset=${offset}`;
-    const j = await fetchSpotifyJsonWithRetry(url);
+    const j = await fetchPlaylistItemsPage(limit, offset);
     for (const it of (j.items || [])) {
-      const id = it?.track?.id;
+      const id = getPlaylistItemTrackId(it);
       if (id && id === trackId) return true;
     }
     const got = (j.items || []).length;
@@ -449,7 +517,11 @@ async function playlistHasTrack(trackId) {
   try {
     return await playlistHasTrackCached(trackId, windowSize);
   } catch {
-    return playlistHasTrackDirect(trackId, windowSize);
+    try {
+      return await playlistHasTrackDirect(trackId, windowSize);
+    } catch {
+      return false;
+    }
   }
 }
 

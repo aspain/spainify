@@ -17,7 +17,7 @@ const spotifyDef = {
   country:   '&market=',
   search:    {
                album:   'https://api.spotify.com/v1/search?type=album&limit=1&q=album:',
-               song:    'https://api.spotify.com/v1/search?type=track&limit=50&q=',
+               song:    'https://api.spotify.com/v1/search?type=track&limit=10&q=',
                station: 'https://api.spotify.com/v1/search?type=artist&limit=1&q=',
                playlist: 'https://api.spotify.com/v1/search?type=playlist&q='
              },
@@ -226,7 +226,8 @@ function loadTracks(type, tracksJson)
   if (tracksJson.tracks.items.length > 0) {
     // Filtered list of tracks to play
     tracks.queueTracks = tracksJson.tracks.items.reduce(function(tracksArray, track) {
-      if (track.available_markets == null || track.available_markets.indexOf(country) != -1) {
+      const markets = Array.isArray(track.available_markets) ? track.available_markets : null;
+      if (markets == null || markets.indexOf(country) != -1) {
         var skip = false;
   
         for (var j=0; (j < tracksArray.length) && !skip ; j++) {

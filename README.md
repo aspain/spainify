@@ -54,6 +54,8 @@ Before running setup, gather API credentials:
 
 2. Spotify (media-actions-api)
    - Create/sign in to Spotify Developer and open the dashboard: https://developer.spotify.com/dashboard
+   - Spotify Development Mode now requires the app owner to have an active Spotify Premium subscription.
+   - As of March 9, 2026, Development Mode is limited to one client ID and up to five authorized users.
    - Create an app and add both redirect URIs:
      - `http://127.0.0.1:8888/callback`
      - `http://<your-pi-ip-address>:8888/callback`
